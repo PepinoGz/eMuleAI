@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html data-theme="dark" lang="en">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1" name="viewport"/>
+  <title>
+   eMule AI
+  </title>
+  <meta content="Release notes (New Features, Improvements, Bug Fixes) for eMule AI
+" name="description"/>
+  <meta content="eMule AI" property="og:title"/>
+  <meta content="#111827" name="theme-color"/>
+  <style>
+   :root{
+      --bg: #f7f8fb; --surface: #ffffff; --muted-surface:#f2f4f8; --ink: #0b1220; --muted:#5b6479; --border:#e5e7ef;
+      --primary:#2563eb; --primary-ink:#ffffff; --h1:#0b1220; --h2:#1d4ed8; --h3:#475569;
+      --ok:#16a34a; --warn:#f59e0b; --err:#ef4444;
+      --card-radius: 10px; --shadow-sm: 0 1px 2px rgba(16,24,40,.06); --shadow-md: 0 6px 20px rgba(16,24,40,.08);
+      --space: clamp(16px, 2.4vw, 24px); --content: 1100px;
+    }
+    [data-theme="dark"]{
+      --bg:#0b1220; --surface:#0f162a; --muted-surface:#0c1426; --ink:#e6eaf5; --muted:#a6b0c8; --border:#1f2a44;
+      --primary:#3b82f6; --primary-ink:#0b1220; --h1:#e6eaf5; --h2:#60a5fa; --h3:#a8b1c9;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.35); --shadow-md: 0 8px 28px rgba(0,0,0,.38);
+    }
+    *{box-sizing:border-box} html,body{height:100%} html{scroll-behavior:smooth}
+    body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"; color:var(--ink); background:var(--bg); line-height:1.6; font-size: clamp(15px, 1.5vw, 17px); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;}
+    h1,h2,h3,h4{line-height:1.25; margin:0 0 8px 0}
+    h1{color:var(--h1); font-size: clamp(26px, 3.4vw, 40px); font-weight:800; letter-spacing:.1px}
+    .h2{color:var(--h2); font-weight:700; font-size: clamp(20px, 2.4vw, 28px); letter-spacing:.2px}
+    .h3,h3{color:var(--h3); font-weight:600; font-size: clamp(16px, 2vw, 20px)}
+    a{color:var(--primary); text-decoration:none} a:hover{text-decoration:underline}
+    .container{max-width:var(--content); margin:0 auto; padding: 0 var(--space)} .visually-hidden{position:absolute;clip:rect(0 0 0 0);clip-path:inset(50%);height:1px;width:1px;overflow:hidden;white-space:nowrap}
+    .topbar{position: sticky; top: 0; z-index: 50; background: color-mix(in hsl, var(--surface), transparent 0%); backdrop-filter: saturate(140%) blur(6px); border-bottom:1px solid var(--border)}
+    .topbar-inner{display:flex; align-items:center; justify-content:space-between; gap:12px; padding: 10px var(--space)}
+    .brand{display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.2px; color:var(--h1)} .brand .dot{width:12px;height:12px;border-radius:999px;background:var(--primary); box-shadow:0 0 0 4px color-mix(in srgb, var(--primary), transparent 80%)}
+    .actions{display:flex; align-items:center; gap:10px} .btn{display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--ink); box-shadow: var(--shadow-sm)} .btn:hover{box-shadow: var(--shadow-md)} .btn.primary{background:var(--primary); border-color: color-mix(in srgb, var(--primary), #000 8%); color:var(--primary-ink)} .btn.ghost{background:transparent}
+    .hero{padding: clamp(24px, 3.6vw, 40px) 0; border-bottom:1px solid var(--border); background:linear-gradient(180deg, color-mix(in srgb, var(--muted-surface), transparent 30%), transparent)}
+    .layout{display:grid; grid-template-columns: 280px 1fr; gap: var(--space); margin-top: var(--space)} @media (max-width: 1000px){.layout{grid-template-columns: 1fr}}
+    .toc{position: sticky; top: calc(50px + var(--space)); align-self: start; background: var(--surface); border:1px solid var(--border); border-radius: var(--card-radius); box-shadow: var(--shadow-sm); padding: 14px}
+    .toc h3{margin:0 0 8px 0; font-size: 14px; text-transform: uppercase; letter-spacing:.08em; color: var(--muted)}
+    .toc a{display:block; padding:8px 10px; border-radius:8px; text-decoration:none; color:inherit; border:1px solid transparent} .toc a:hover{background: var(--muted-surface); border-color: var(--border)}
+    .content{min-width:0} section + section{margin-top: calc(var(--space) * 1.5)}
+    .card{background:var(--surface); border:1px solid var(--border); border-radius: var(--card-radius); box-shadow: var(--shadow-sm); padding:16px}
+    .stack .section{padding:4px 0} .divider{border:0; border-top:1px solid var(--border); margin:12px 0}
+    footer{border-top:1px solid var(--border); margin-top: calc(var(--space) * 2); padding: var(--space) 0; color: var(--muted)}
+    @media print{.topbar, .toc, .actions{display:none !important} .container{max-width:none} body{background:#fff; color:#000} .card{box-shadow:none; border-color:#ddd}}
+  </style>
+ </head>
+ <body>
+  <a class="visually-hidden" href="#content">
+   Skip to content
+  </a>
+  <header class="topbar">
+   <div class="topbar-inner container">
+    <div class="brand">
+     <span aria-hidden="true" class="dot">
+     </span>
+     <span>
+      eMule AI — Release Notes
+     </span>
+    </div>
+    <div class="actions">
+     <button aria-label="Toggle light/dark theme" class="btn ghost" id="themeToggle" type="button">
+      Toggle theme
+     </button>
+     <a class="btn primary" href="#features">
+      Get started
+     </a>
+    </div>
+   </div>
+  </header>
+  <header class="hero">
+   <div class="container">
+    <h1>
+     eMule AI — Release Notes
+    </h1>
+    <p style="margin:6px 0 0;color:var(--muted)">
+     What’s new, what’s improved, and what’s fixed.
+    </p>
+   </div>
+  </header>
+  <main class="container layout" id="content">
+   <aside aria-label="Table of contents" class="toc">
+    <h3>
+     Contents
+    </h3>
+    <a href="#features">
+     New Features
+    </a>
+    <a href="#improvements">
+     Improvements
+    </a>
+    <a href="#fixes">
+     Bug Fixes
+    </a>
+   </aside>
+   <div class="content">
+    <!-- New Features -->
+    <section id="features">
+     <h2 class="h2">
+      New Features
+     </h2>
+     <article class="card stack">
+      <div class="section">
+       <h3 class="h3">
+        Protection Panel
+       </h3>
+       <p>
+        A dedicated Options page that centralizes safety/anti-leecher controls with clear explanations, timed punishments, and friend exemptions. Choose actions (ban, score reduce, log only) per detection category to keep the swarm clean with minimal false positives.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Dark Mode
+       </h3>
+       <p>
+        A full dark modern theme for windows, tabs, menus, list headers, and progress bars. It preserves readability, supports hover/pressed states, and can be toggled without restarting.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Fast and Fluid Lists
+       </h3>
+       <p>
+        Provides a smoother experience in heavy lists (Files, Downloads, Search, Clients) with lower memory usage and faster responsiveness, smooth scrolling and quick updates even with hundreds of thousands of rows.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        NAT Traversal &amp; Extended Source Exchange
+       </h3>
+       <p>
+        LowID ↔ LowID now works through two distinct NAT-T paths. Kad Buddy path (classic): Kad rendezvous flow where uploader side needs a Kad buddy. eServer Buddy path (new in eMule AI): same-server relay between LowID peers using OP_ESERVER_BUDDY/RELAY packets. This eServer Buddy mechanism is a client-side eMule AI feature and does not require server NAT extension support (no dependency on Lugdunum NAT opcodes). If the target is not connected yet, the buddy can try classic OP_CALLBACKREQUEST and finish relay after target reconnect + ACK. External UDP port discovery, hole-punch retries, and uTP retries improve success under difficult NAT conditions. Extended Source Exchange further improves source discovery and transfer stability with richer peer metadata.
+       </p>
+      </div>
+      <hr class="divider"/>
+     <div class="section">
+       <h3 class="h3">
+        IPv6 Support
+       </h3>
+       <p>
+        End-to-end IPv6 handling for peers, friends, and sockets alongside IPv4; addresses display and copy correctly across dialogs and tooltips.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Spam/Blacklist System
+       </h3>
+       <p>
+        A Spam Rating column (0–100), a customizable spam threshold, logging of rating results, and a Blacklist Panel with “recheck now” combine to surface quality results and hide junk.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Client History
+       </h3>
+       <p>
+        Lightweight history of clients you met (with retention control) to enable once-per-client automation like first-time shared-files queries.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Threaded Shared-Files Reload
+       </h3>
+       <p>
+        Refreshing shared files runs in a worker thread and updates the UI progressively, avoiding stalls while scanning disks.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Shared Files Watcher
+       </h3>
+       <p>
+        Background watcher keeps the Shared view in sync with filesystem changes without manual reloads.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Automatically Share Subdirectories
+       </h3>
+       <p>
+        When enabled, subfolders under your shared roots are included automatically—both existing and newly created ones.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Download Checker
+       </h3>
+       <p>
+        Before adding a file, checks duplicates/near-duplicates across downloads/history/shared and can warn, reject, or auto-blacklist by your preference.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Built-In Language Resources (116 Languages)
+       </h3>
+       <p>
+        Language support is embedded, so external language DLL files are not required. Supported language codes (116): en, af, am, ar, ast, az, be, bg, bn, bs, ca, ca-VAL, ceb, co, cs, cy, da, de, el, eo, es, es-AR, et, eu, fa, fi, fr, fy, ga, gd, gl, gu, ha, haw, he, hi, hmw, hr, ht, hu, hy, id, ig, is, it, iw, ja, jw, ka, kk, km, kn, ko, ku, ky, la, lb, lo, lt, lv, mg, mi, mk, ml, mn, mr, ms, mt, my, nb, ne, nl, nn, no, ny, or, pa, pl, ps, pt, pt-BR, ro, ru, rw, sd, si, sk, sl, sm, sn, so, sq, sr, st, su, sv, sw, ta, te, tg, th, tk, tl, tr, tt, ug, uk, ur, uz, vi, xh, yi, yo, zh-CN, zh-TW, zu.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Connection Checker
+       </h3>
+       <p>
+        One-click background connectivity test with clear start/stop log lines; helps diagnose DNS/routing hiccups without interrupting transfers.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Emulate Clients &amp; Communities
+       </h3>
+       <p>
+        Optional compatibility/emulation toggles for certain clients/communities to improve interoperability and prioritization.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        New Toolbar Buttons
+       </h3>
+       <p>
+        Quick actions for Save State, Reload Config (no restart), and threaded Backup. Numbered Preview buttons (1–10) launch your chosen preview apps directly; right-click can jump to the next previewable file.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Read PeerGuardian Lists Automatically
+       </h3>
+       <p>
+        At startup, all *.p2p files in the config folder are merged into the active IP filter—just drop lists in and they apply.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Kad Search Limit Option
+       </h3>
+       <p>
+        You can limit how many answers a Kad keyword search collects before auto-stopping.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Search / Transfer Window Filters
+       </h3>
+       <p>
+        Fast, on-view filters to narrow lists to what you care about (e.g., active/paused).
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Friend / User Hash / ID Type / Client Version Columns
+       </h3>
+       <p>
+        New columns in client lists show Friend status, User Hash, ID Type (High/LowID), and Client Version for quick grouping and sorting.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        IP:Port Column
+       </h3>
+       <p>
+        Shows each peer’s current endpoint in a sortable column.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        See Own Credits
+       </h3>
+       <p>
+        Displays how your credit ratio appears to the remote side for clearer give-and-take diagnostics.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Cancel Download from Context Menus
+       </h3>
+       <p>
+        Right-click in Search/Download/Shared lists to cancel downloads; an option lets you cancel without marking as “canceled” in history.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Remote Client’s Shared Files — Status Columns
+       </h3>
+       <p>
+        New columns indicate query status, last queried time, and number of files received for a client’s shared list.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Client Note
+       </h3>
+       <p>
+        Attach a short note to any client; optionally show it in the tab title when viewing that client’s files.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Copy List Text with CTRL+C / CTRL+X
+       </h3>
+       <p>
+        Copy selected list rows as neat plain text for pasting into notes/spreadsheets.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Clean Up Search Results
+       </h3>
+       <p>
+        A command to quickly purge obsolete/blacklisted items from active search tabs.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Disable “Find As You Type” Option
+       </h3>
+       <p>
+        Turn off type-to-search in heavy lists to avoid accidental scans.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Don’t Mark As Canceled (Menu Action)
+       </h3>
+       <p>
+        Cancel a download without adding it to the “canceled” history.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Friend Link Recognition
+       </h3>
+       <p>
+        Understands ed2k “friend” links from clipboard to add friends quickly.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Source Cache
+       </h3>
+       <p>
+        Temporarily caches discovered sources so paused/resumed files can reuse them without re-querying.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        GeoLite2 (Country/City &amp; Flags)
+       </h3>
+       <p>
+        Shows country (and city when known) and a flag icon for peers/servers; can be disabled or limited to country only.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Client Version in Tooltips
+       </h3>
+       <p>
+        Download-list tooltips include full client software/version lines.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Webservices Enhancements
+       </h3>
+       <p>
+        Wide-character support and a “filename_untouched” placeholder in webservices.dat; multi-selection webservice actions.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        SpeedMeter
+       </h3>
+       <p>
+        Built-in live up/down graphs in the Connection page and main window for a lightweight visual of throughput.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Auto Query Remote Client’s Shared Files (First Connect)
+       </h3>
+       <p>
+        Optionally auto-query a client’s shared files after first connection, paced by configurable per-period limits.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Save Application State (Button)
+       </h3>
+       <p>
+        One-click save of list layouts, column orders, and preferences for easy layout “bookmarks”.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Set Executable Directory as Default (First-Run Behavior)
+       </h3>
+       <p>
+        If no choice exists yet, uses the app’s folder as the base location for a portable-style setup.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Don’t Filter Private IPs Option
+       </h3>
+       <p>
+        Allow local/private addresses even when an IP filter is active—useful on home/lab networks.
+       </p>
+      </div>
+     </article>
+    </section>
+    <!-- Improvements -->
+    <section id="improvements">
+     <h2 class="h2">
+      Improvements
+     </h2>
+     <article class="card stack">
+      <div class="section">
+       <h3 class="h3">
+        Long Path Support
+       </h3>
+       <p>
+        File operations (hash/preview/move/backup) work reliably beyond classic 260-char Windows limits by using long-path-safe APIs and formats.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Virtual-List Performance &amp; List Engine
+       </h3>
+       <p>
+        Compact backing stores, batched refresh, selection/scroll restore, and combined/heap sorting make giant lists smooth and responsive.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Search Results Load Faster
+       </h3>
+       <p>
+        Only the active tab refreshes immediately; others update counters without full redraws. Virtualized storage accelerates inserts and sorting.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Safer, Faster Part-File Writing
+       </h3>
+       <p>
+        File allocation, metadata flushing, and buffer moves occur inside the writer thread under scoped locks, with periodic disk-space checks—reducing contention and stutters.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Faster Pause/Stop/Remove/Complete &amp; Sorting
+       </h3>
+       <p>
+        Bulk operations coalesce UI work, and large lists use a single combined sort pass for steady ordering during heavy updates.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Reconnect &amp; Notify After IP Change (Kad/eD2k)
+       </h3>
+       <p>
+        On public IP changes, Kad reconnects gracefully; peers are informed and sources re-asked to minimize stalls.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Safe Configuration File Saving
+       </h3>
+       <p>
+        Writes sensitive data to a temp file and atomically replaces the original, keeping files intact if something fails mid-write.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Search Parameter Restoration &amp; Tab Titles
+       </h3>
+       <p>
+        Complex Boolean expressions are preserved and appear as tab titles; restored searches match your original filters and fields.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        KAD Bootstrap UX
+       </h3>
+       <p>
+        Autocomplete/history for IP:port and URL fields, Enter-to-bootstrap, Delete to remove suggestions; remembers your last choice.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        IP Filter Improvements
+       </h3>
+       <p>
+        Static IP filter file, separate whitelist, better loader/merger behavior, and corrected save logic (no truncation).
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        GeoLite2 Clarity/Performance
+       </h3>
+       <p>
+        Efficient flag handling and optional long vs. short country names; single-click enable/disable.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Auto-Refreshing Network Info
+       </h3>
+       <p>
+        Keeps ports/IDs/Kad status current while open, with tidy formatting and consistent refresh.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Owner-Draw Polish (Dark Mode)
+       </h3>
+       <p>
+        Menus/tabs get theme-aware drawing, clear submenu indicators, and crisp text rendering.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        UI Tweaks &amp; Multisort
+       </h3>
+       <p>
+        Cleaner menus, better icons/spacing, and improved multi-level sorting for predictable results.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Better Passive Source Finding &amp; UDP Reask Handling
+       </h3>
+       <p>
+        Gentler retry logic and more realistic counters reduce misleading stats and improve source discovery.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Spread Requests &amp; Timers
+       </h3>
+       <p>
+        Request bursts are smoothed and reask timers clarified to keep queues fresh without spamming.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Extended Clean Up (Memory Footprint)
+       </h3>
+       <p>
+        Idle clients and stale entries are cleaned more aggressively to keep long sessions lean.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Publish File List Faster
+       </h3>
+       <p>
+        More compact server-publish packets and fewer unnecessary sorts make “publish to server” snappier.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Merge Search Results
+       </h3>
+       <p>
+        Compatible results are merged while respecting spam heuristics to reduce duplicates and clutter.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Windows 11 Detection
+       </h3>
+       <p>
+        Accurate OS detection helps choose safe defaults/paths on modern systems.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Faster Loading Part Files At Startup
+       </h3>
+       <p>
+        Defers redraws during initial load to reduce repaint cycles and speed up UI bring-up.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Better WINE Desktop Integration
+       </h3>
+       <p>
+        Opens files/links via GNOME/KDE helpers and translates paths properly under WINE.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Webservice Selection for Multiple Items
+       </h3>
+       <p>
+        Apply web actions to multiple selections at once for faster lookups.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Don’t Save Part Files on Every Server Reconnect
+       </h3>
+       <p>
+        Skips redundant disk writes on reconnects, trimming stutter on large libraries.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Touch Default-Apps File Only When Needed
+       </h3>
+       <p>
+        Checks the preview-apps map only when opening the menu to avoid periodic disk I/O.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Save/Load Path for Known Files
+       </h3>
+       <p>
+        Stores full paths with known files for accurate restoration and display.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        DST Tolerance for known.met
+       </h3>
+       <p>
+        Accepts small timestamp shifts due to daylight saving, preventing needless re-hashing.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Advanced Preferences Page
+       </h3>
+       <p>
+        Collects power-user toggles (Search/Server/File handling, etc.) with concise on-screen explanations.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Right-Click “Preview Next”
+       </h3>
+       <p>
+        Quickly step through previewable items from the toolbar without changing selection.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Move/Resize Search Filter Box
+       </h3>
+       <p>
+        Cleaner header layout reduces accidental clicks while preserving functionality.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Use File Type Tag Only If Needed
+       </h3>
+       <p>
+        Search entries derive type from filename first, falling back to the tag only when necessary for accuracy.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Thread Names in Release Builds
+       </h3>
+       <p>
+        Improves crash-report readability without impacting performance.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Optimization: Debug Trace Hygiene
+       </h3>
+       <p>
+        Suppresses noisy traces by default and clarifies “missing icon resource” diagnostics for easier skin/theme troubleshooting.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Repeat Server List
+       </h3>
+       <p>
+        Automatically loops the server list on failures to improve connection reliability.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        SafeHash Behavior
+       </h3>
+       <p>
+        Waits for full initialization before auto-connect and stops hashing immediately on exit for faster, cleaner shutdowns.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Save Search File Type
+       </h3>
+       <p>
+        Remembers your preferred search category (Any/Audio/Video, etc.) between sessions.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Prevent Default Double-Click on Toolbar
+       </h3>
+       <p>
+        Avoids accidental command executions from toolbar double-clicks.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Set Category Only If Changed
+       </h3>
+       <p>
+        Skips redundant saves/re-sorts when a category remains the same.
+       </p>
+      </div>
+     </article>
+    </section>
+    <!-- Bug Fixes -->
+    <section id="fixes">
+     <h2 class="h2">
+      Bug Fixes
+     </h2>
+     <article class="card stack">
+      <div class="section">
+       <h3 class="h3">
+        “Encountered an improper argument” Crashes While Scrolling
+       </h3>
+       <p>
+        Guards progress-bar drawing to avoid invalid GDI calls during fast scrolling in the Download list.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        AICH Hashset Save
+       </h3>
+       <p>
+        Waits properly for internal locks and stops hashing on exit to eliminate “Failed to save HashSet” after hashing.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Stored Searches File Corruption
+       </h3>
+       <p>
+        Loads stored searches early to prevent creation of empty placeholder files at startup.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Race on Write Completion
+       </h3>
+       <p>
+        Skips late completions for just-deleted files to avoid a rare crash during heavy cleanup/shutdown.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Sockets Leak on “Too Many Connections”
+       </h3>
+       <p>
+        Releases sockets correctly when entering the “too many connections” state under load.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Null Current-File Guard
+       </h3>
+       <p>
+        Prevents crashes by safely refusing source requests when the current file pointer is missing.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        “View Shared Files” Folder Persistence
+       </h3>
+       <p>
+        Restores the last used folder for that mode in stored searches.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Preview Backup Eligibility
+       </h3>
+       <p>
+        No longer requires previewability checks; relies on free-space threshold to avoid false negatives.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        UPnP/ATLTRACE Format Mismatch
+       </h3>
+       <p>
+        Fixes a debug-build crash due to a wrong trace format string.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        IP Filter: Save Truncation
+       </h3>
+       <p>
+        Writes complete addresses without truncation when saving filter files.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        IP Filter: 128-bit Range Merge Boundary
+       </h3>
+       <p>
+        Keeps boundaries correct when merging ranges by comparing with computed “end+1”.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        “Wrong Connecting” Log
+       </h3>
+       <p>
+        Logs “Connecting …” only when a connection is actually pending.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Delete Completed Downloads Crash
+       </h3>
+       <p>
+        Guards against null dereferences when removing multiple finished items.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Part-File Gap Handling
+       </h3>
+       <p>
+        Removes empty gaps immediately and clamps boundaries correctly; progress/availability remain accurate.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Hashing Progress Denominator
+       </h3>
+       <p>
+        Percentages use the actual hashed size as denominator to avoid misleading jumps and rare divide-by-zero.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        MediaInfo Exception Handling
+       </h3>
+       <p>
+        Clears buffers and closes gracefully when media details cannot be read instead of throwing.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Shared Files Sorting
+       </h3>
+       <p>
+        Locale-aware, case-insensitive sort by “File Type” behaves predictably with neat sub-sorting.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Menu/GDI Leaks
+       </h3>
+       <p>
+        Deletes custom brushes, detaches/destroys header image lists, and tightens ownership to close small GDI leaks.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        RemoveAnchor vs ASSERT
+       </h3>
+       <p>
+        Removes invalid anchors safely during layout changes to eliminate resize assertions.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Null CString Pointer
+       </h3>
+       <p>
+        Defensive checks prevent crashes when an error string is unexpectedly null.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        OP_MULTIPACKETANSWER_EXT2
+       </h3>
+       <p>
+        Fixes extended multi-packet response handling for better peer compatibility.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        ntohl Not Needed
+       </h3>
+       <p>
+        Removes unnecessary byte-order conversions that could mislead logging/handling.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Splash Screen vs Clipboard Prompt
+       </h3>
+       <p>
+        Ensures the ED2K clipboard prompt isn’t hidden behind the splash screen on startup.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Delete Duplicate Search Results
+       </h3>
+       <p>
+        Removes duplicates reliably without orphaning children; child items are also deleted correctly.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Skip Freed Items in Menus
+       </h3>
+       <p>
+        Ignores just-deleted downloads when building context-menu state to prevent rare crashes.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Auto-Promote to 64-bit Tag
+       </h3>
+       <p>
+        Promotes values exceeding 32-bit safely, preventing corrupted metadata and parsing errors.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Kademlia Fast-Refresh Logic
+       </h3>
+       <p>
+        More conservative logic reduces stalls and prevents missed updates.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Always Log Assert to File (Stability)
+       </h3>
+       <p>
+        ASSERTs are logged to file rather than popping intrusive dialogs in enabled mode, aiding diagnostics without interrupting transfers.
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Wrong Percentage Sign in Log
+       </h3>
+       <p>
+        Literal “%” characters in log messages print correctly (no accidental format parsing).
+       </p>
+      </div>
+      <hr class="divider"/>
+      <div class="section">
+       <h3 class="h3">
+        Media Parsing with Long Paths
+       </h3>
+       <p>
+        Opens long-path files safely when reading metadata to avoid failures in deep directory trees.
+       </p>
+      </div>
+     </article>
+    </section>
+    <footer>
+     <div>
+      © eMule AI
+     </div>
+    </footer>
+   </div>
+  </main>
+  <script>
+   (function(){
+    const root = document.documentElement;
+    const btn = document.getElementById('themeToggle');
+    const saved = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    root.dataset.theme = saved || (prefersDark ? 'dark' : 'light');
+    btn && btn.addEventListener('click', function(){
+      const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+      root.dataset.theme = next;
+      localStorage.setItem('theme', next);
+    });
+  })();
+  </script>
+ </body>
+</html>
