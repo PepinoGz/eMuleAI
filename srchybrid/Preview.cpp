@@ -141,7 +141,23 @@ namespace
 }
 
 
-CPreviewApps thePreviewApps;
+namespace
+{
+	CPreviewApps* g_pPreviewApps = NULL;
+}
+
+CPreviewApps& BB_GetPreviewApps()
+{
+	if (g_pPreviewApps == NULL)
+		g_pPreviewApps = new CPreviewApps;
+	return *g_pPreviewApps;
+}
+
+void BB_FreePreviewApps() noexcept
+{
+	delete g_pPreviewApps;
+	g_pPreviewApps = NULL;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // CPreviewThread

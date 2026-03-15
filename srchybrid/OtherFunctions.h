@@ -251,6 +251,7 @@ bool PointInClient(const CWnd &wnd, const CPoint &point);
 ///////////////////////////////////////////////////////////////////////////////
 // Resource strings
 CString GetResString(LPCTSTR key);
+void ClearTranslationKeyIndex();
 int LocMessageBox(LPCTSTR key, UINT nType = MB_OK, UINT nIDHelp = 0);
 CString GetResNoAmp(LPCTSTR key);
 // Check if LPCTSTR string is null or empty

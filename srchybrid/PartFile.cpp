@@ -72,13 +72,41 @@ static char THIS_FILE[] = __FILE__;
 // Barry - use this constant for both places
 #define PROGRESS_HEIGHT 3
 
-CBarShader CPartFile::s_LoadBar(PROGRESS_HEIGHT); // Barry - was 5
-CBarShader CPartFile::s_ChunkBar(16);
+namespace
+{
+	CBarShader* g_pPartFileLoadBar = NULL;
+	CBarShader* g_pPartFileChunkBar = NULL;
+
+	CBarShader& BB_GetPartFileLoadBar()
+	{
+		if (g_pPartFileLoadBar == NULL)
+			g_pPartFileLoadBar = new CBarShader(PROGRESS_HEIGHT);
+		return *g_pPartFileLoadBar;
+	}
+
+	CBarShader& BB_GetPartFileChunkBar()
+	{
+		if (g_pPartFileChunkBar == NULL)
+			g_pPartFileChunkBar = new CBarShader(16);
+		return *g_pPartFileChunkBar;
+	}
+}
+
+#define s_LoadBar BB_GetPartFileLoadBar()
+#define s_ChunkBar BB_GetPartFileChunkBar()
 
 void CPartFile::ReleaseBarShaderBuffers() noexcept
 {
-	s_LoadBar.ReleaseBuffers();
-	s_ChunkBar.ReleaseBuffers();
+	if (g_pPartFileLoadBar != NULL) {
+		g_pPartFileLoadBar->ReleaseBuffers();
+		delete g_pPartFileLoadBar;
+		g_pPartFileLoadBar = NULL;
+	}
+	if (g_pPartFileChunkBar != NULL) {
+		g_pPartFileChunkBar->ReleaseBuffers();
+		delete g_pPartFileChunkBar;
+		g_pPartFileChunkBar = NULL;
+	}
 }
 
 IMPLEMENT_DYNAMIC(CPartFile, CKnownFile)

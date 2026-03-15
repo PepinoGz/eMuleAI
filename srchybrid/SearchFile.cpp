@@ -21,6 +21,7 @@
 #include "OtherFunctions.h"
 #include "opcodes.h"
 #include "Packets.h"
+#include "StringConversion.h"
 #include "Preferences.h"
 #include "Kademlia/Kademlia/Entry.h"
 #include "emule.h"
@@ -40,6 +41,83 @@ static char THIS_FILE[] = __FILE__;
 bool IsValidSearchResultClientIPPort(uint32 nIP, uint16 nPort)
 {
 	return	(nIP & 0xFF) && nPort;
+}
+
+namespace
+{
+	bool TryBuildStoredSearchDirectory(LPCTSTR pszDirectory, CString& strDirectory)
+	{
+		strDirectory.Empty();
+		if (pszDirectory == NULL || *pszDirectory == _T('\0'))
+			return false;
+
+		static const size_t kMaxStoredSearchDirectoryChars = 32767;
+		__try {
+			const size_t cchDirectory = _tcsnlen(pszDirectory, kMaxStoredSearchDirectoryChars + 1);
+			if (cchDirectory == 0 || cchDirectory > kMaxStoredSearchDirectoryChars) {
+				TRACE(_T("[SearchFile] Skipping invalid stored search directory, length=%Iu\n"), cchDirectory);
+				return false;
+			}
+
+			strDirectory.SetString(pszDirectory, static_cast<int>(cchDirectory));
+			return !strDirectory.IsEmpty();
+		} __except (EXCEPTION_EXECUTE_HANDLER) {
+			TRACE(_T("[SearchFile] Skipping unreadable stored search directory pointer.\n"));
+		}
+
+		return false;
+	}
+
+	void WriteStoredDirectoryTag(CFileDataIO& rFile, uint8 uTagName, const CString& strValue)
+	{
+		CUnicodeToUTF8 utf8Value(strValue);
+		CStringA strValueA((LPCSTR)utf8Value, utf8Value.GetLength());
+		const UINT uStrValLen = strValueA.GetLength();
+		const uint8 uType = (uStrValLen >= 1 && uStrValLen <= 16) ? static_cast<uint8>(TAGTYPE_STR1 + uStrValLen - 1) : TAGTYPE_STRING;
+
+		rFile.WriteUInt8(uType | 0x80);
+		rFile.WriteUInt8(uTagName);
+
+		if (uType == TAGTYPE_STRING)
+			rFile.WriteUInt16(static_cast<uint16>(uStrValLen));
+
+		if (uStrValLen != 0)
+			rFile.Write((void*)(LPCSTR)strValueA, uStrValLen);
+	}
+
+	void WriteStoredAICHHashTag(CFileDataIO& rFile, const CAICHHash& hash)
+	{
+		static const char s_base32Chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+		char szEncoded[(HASHSIZE * 8u + 4u) / 5u + 1u] = {};
+		unsigned index = 0;
+		unsigned outPos = 0;
+		const uchar* pBuffer = hash.GetRawHashC();
+
+		for (unsigned i = 0; i < HASHSIZE && outPos < _countof(szEncoded) - 1;) {
+			unsigned char word;
+			if (index > 3) {
+				word = static_cast<unsigned char>(pBuffer[i] & (0xFF >> index));
+				index = (index + 5) % 8;
+				word <<= index;
+				if (i < HASHSIZE - 1)
+					word |= pBuffer[i + 1] >> (8 - index);
+
+				++i;
+			} else {
+				word = static_cast<unsigned char>((pBuffer[i] >> (8 - (index + 5))) & 0x1F);
+				index = (index + 5) % 8;
+				if (index == 0)
+					++i;
+			}
+
+			szEncoded[outPos++] = s_base32Chars[word];
+		}
+
+		rFile.WriteUInt8(TAGTYPE_STRING | 0x80);
+		rFile.WriteUInt8(FT_AICH_HASH);
+		rFile.WriteUInt16(static_cast<uint16>(outPos));
+		rFile.Write(szEncoded, outPos);
+	}
 }
 
 void ConvertED2KTag(CTag *&pTag)
@@ -302,7 +380,8 @@ void CSearchFile::StoreToFile(CFileDataIO& rFile) const
 	rFile.WriteHash16(m_FileIdentifier.GetMD4Hash());
 	rFile.WriteUInt32(m_nClientID);
 	rFile.WriteUInt16(m_nClientPort);
-	bool bHasDirectory = m_pszDirectory && *m_pszDirectory;
+	CString strStoredDirectory;
+	const bool bHasDirectory = TryBuildStoredSearchDirectory(m_pszDirectory, strStoredDirectory);
 	uint32 nTagCount = (uint32)m_taglist.GetCount();
 	nTagCount += static_cast<uint32>(m_FileIdentifier.HasAICHHash());
 	nTagCount += static_cast<uint32>(bHasDirectory);
@@ -316,12 +395,10 @@ void CSearchFile::StoreToFile(CFileDataIO& rFile) const
 			tag->WriteNewEd2kTag(rFile, UTF8strRaw);
 	}
 
-	if (m_FileIdentifier.HasAICHHash()) {
-		CTag aichtag(FT_AICH_HASH, m_FileIdentifier.GetAICHHash().GetString());
-		aichtag.WriteNewEd2kTag(rFile);
-	}
+	if (m_FileIdentifier.HasAICHHash())
+		WriteStoredAICHHashTag(rFile, m_FileIdentifier.GetAICHHash());
 	if (bHasDirectory)
-		CTag(FT_FOLDERNAME, m_pszDirectory).WriteNewEd2kTag(rFile);
+		WriteStoredDirectoryTag(rFile, FT_FOLDERNAME, strStoredDirectory);
 }
 
 void CSearchFile::UpdateFileRatingCommentAvail(bool bForceUpdate)

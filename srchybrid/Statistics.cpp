@@ -36,7 +36,23 @@ extern _CRT_ALLOC_HOOK g_pfnPrevCrtAllocHook;
 ///////////////////////////////////////////////////////////////////////////////
 // CStatistics
 
-CStatistics theStats;
+namespace
+{
+	CStatistics* g_pStatistics = NULL;
+}
+
+CStatistics& BB_GetStatistics()
+{
+	if (g_pStatistics == NULL)
+		g_pStatistics = new CStatistics;
+	return *g_pStatistics;
+}
+
+void BB_FreeStatistics() noexcept
+{
+	delete g_pStatistics;
+	g_pStatistics = NULL;
+}
 
 float	CStatistics::maxDown;
 float	CStatistics::maxDownavg;
@@ -176,6 +192,14 @@ void CStatistics::Init()
 	cumDownavg = thePrefs.GetConnAvgDownRate();
 	maxcumUpavg = thePrefs.GetConnMaxAvgUpRate();
 	maxcumUp = thePrefs.GetConnMaxUpRate();
+}
+
+void CStatistics::Uninit()
+{
+	uprateHistory.clear();
+	downrateHistory.clear();
+	m_AverageDDRO_list.clear();
+	m_AverageUDRO_list.clear();
 }
 
 // This function is going to basically calculate and save a bunch of averages.

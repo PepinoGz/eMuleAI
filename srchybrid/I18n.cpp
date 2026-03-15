@@ -35,25 +35,25 @@ namespace
 
 	// Indexed string-key lookup: build a sorted index once and binary search by key.
 	struct KeyIndexEntry { LPCTSTR key; uint32_t head; };
+	static std::vector<KeyIndexEntry> s_keyIndex;
+	static bool s_keyIndexBuilt = false;
 	static const std::vector<KeyIndexEntry>& BuildKeyIndex()
 	{
-		static std::vector<KeyIndexEntry> s_index;
-		static bool s_built = false;
-		if (!s_built) {
-			s_index.reserve(Translations::kBucketCount);
+		if (!s_keyIndexBuilt) {
+			s_keyIndex.reserve(Translations::kBucketCount);
 			for (uint32_t i = 0; i < Translations::kBucketCount; ++i) {
 				const Translations::TranslationBucket &b = Translations::kBuckets[i];
 				if (b.key != nullptr && b.value != Translations::kInvalidIndex) {
 					KeyIndexEntry e{ b.key, b.value };
-					s_index.push_back(e);
+					s_keyIndex.push_back(e);
 				}
 			}
-			std::sort(s_index.begin(), s_index.end(), [](const KeyIndexEntry &a, const KeyIndexEntry &b) {
+			std::sort(s_keyIndex.begin(), s_keyIndex.end(), [](const KeyIndexEntry &a, const KeyIndexEntry &b) {
 				return _tcscmp(a.key, b.key) < 0;
 			});
-			s_built = true;
+			s_keyIndexBuilt = true;
 		}
-		return s_index;
+		return s_keyIndex;
 	}
 
 	const Translations::TranslationValue* FindTranslationEntry(LPCTSTR key)
@@ -308,6 +308,15 @@ CString GetResString(LPCTSTR key)
 	}
 	TRACE(_T("Missing translation for %s\n"), key);
 	return CString(key);
+}
+
+void ClearTranslationKeyIndex()
+{
+	if (!s_keyIndexBuilt)
+		return;
+
+	std::vector<KeyIndexEntry>().swap(s_keyIndex);
+	s_keyIndexBuilt = false;
 }
 
 CString GetResNoAmp(LPCTSTR key)

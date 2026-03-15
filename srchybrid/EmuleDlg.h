@@ -177,6 +177,8 @@ public:
 	CSplashScreen	*m_pSplashWnd;
 	CWnd			*activewnd;
 	uint8			status;
+	HWND			m_hWndSearchDlg;
+	HWND			m_hWndTransferDlg;
 
 	void ShowSpeedGraph(bool bShow = true); 
 	void SetSpeedGraphLimits();

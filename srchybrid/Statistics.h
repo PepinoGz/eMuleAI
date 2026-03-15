@@ -38,6 +38,7 @@ public:
 	void	RecordRate();
 	float	GetAvgDownloadRate(int averageType);
 	float	GetAvgUploadRate(int averageType);
+	void	Uninit();
 
 	static uint32	GetTransferTime()							{ return timeTransfers + time_thisTransfer; }
 	static uint32	GetUploadTime()								{ return timeUploads + time_thisUpload; }
@@ -194,7 +195,10 @@ private:
 	std::list<TransferredData> m_AverageUDRO_list;
 };
 
-extern CStatistics theStats;
+CStatistics& BB_GetStatistics();
+void BB_FreeStatistics() noexcept;
+
+#define theStats BB_GetStatistics()
 
 #if !defined(_DEBUG) && !defined(_AFXDLL) && _MFC_VER==0x0710
 #define	ALLOC_SLOTS	20

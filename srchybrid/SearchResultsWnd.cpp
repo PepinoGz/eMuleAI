@@ -38,6 +38,7 @@
 #include "kademlia/kademlia/SearchManager.h"
 #include "kademlia/kademlia/search.h"
 #include "SearchExpr.h"
+#include "OtherFunctions.h"
 #define USE_FLEX
 #include "Parser.hpp"
 #include "Scanner.h"
@@ -84,6 +85,12 @@ enum ESearchResultImage
 
 namespace
 {
+	UINT_PTR GetSearchTabToolId(int iTab)
+	{
+		ASSERT(iTab >= 0);
+		return static_cast<UINT_PTR>(iTab + 1);
+	}
+
 	CString FormatTooltipTimeValue(time_t tValue)
 	{
 		if (tValue <= 0)
@@ -119,9 +126,24 @@ namespace
 	{
 		if (strValue.IsEmpty())
 			return;
+		CString strLabel(pszLabel);
+		strLabel.TrimRight();
+		while (!strLabel.IsEmpty() && strLabel[strLabel.GetLength() - 1] == _T(':')) {
+			strLabel.Truncate(strLabel.GetLength() - 1);
+			strLabel.TrimRight();
+		}
 		if (!strTooltip.IsEmpty())
 			strTooltip += _T('\n');
-		strTooltip.AppendFormat(_T("%s: %s"), pszLabel, (LPCTSTR)strValue);
+		strTooltip.AppendFormat(_T("%s: %s"), (LPCTSTR)strLabel, (LPCTSTR)strValue);
+	}
+
+	void AppendTooltipRawLine(CString& strTooltip, const CString& strLine)
+	{
+		if (strLine.IsEmpty())
+			return;
+		if (!strTooltip.IsEmpty())
+			strTooltip += _T('\n');
+		strTooltip += strLine;
 	}
 
 	CString GetSearchMethodText(const SSearchParams* pParams)
@@ -1454,10 +1476,10 @@ bool CSearchResultsWnd::CreateNewTab(SSearchParams *pParams, bool bActiveIcon, b
 	int itemnr = searchselect.InsertItem(INT_MAX, &ti);
 	if (!searchselect.IsWindowVisible())
 		ShowSearchSelector(true);
-	searchselect.UpdateTabToolTips();
 	LRESULT lResult;
 	OnSelChangingTab(NULL, &lResult);
 	searchselect.SetCurSel(itemnr);
+	searchselect.UpdateTabToolTips(itemnr);
 	if (bShowResults)
 		searchlistctrl.ReloadList(false, LSF_NONE);
 	return true;
@@ -1850,7 +1872,7 @@ void CSearchResultsSelector::UpdateTabToolTips(int tab)
 
 	if (tab == -1) {
 		for (int i = m_tooltipTabs.GetToolCount(); --i >= 0;)
-			m_tooltipTabs.DelTool(this, i);
+			m_tooltipTabs.DelTool(this, GetSearchTabToolId(i));
 
 		for (int i = 0; i < GetItemCount(); ++i) {
 			CString strTip = BuildSharedFilesTooltip(i);
@@ -1861,12 +1883,12 @@ void CSearchResultsSelector::UpdateTabToolTips(int tab)
 
 			CRect rcItem;
 			GetItemRect(i, &rcItem);
-			VERIFY(m_tooltipTabs.AddTool(this, strTip, &rcItem, i));
+			VERIFY(m_tooltipTabs.AddTool(this, strTip, &rcItem, GetSearchTabToolId(i)));
 		}
 		return;
 	}
 
-	m_tooltipTabs.DelTool(this, tab);
+	m_tooltipTabs.DelTool(this, GetSearchTabToolId(tab));
 
 	CString strTip = BuildSharedFilesTooltip(tab);
 	if (strTip.IsEmpty())
@@ -1876,7 +1898,7 @@ void CSearchResultsSelector::UpdateTabToolTips(int tab)
 
 	CRect rcItem;
 	GetItemRect(tab, &rcItem);
-	VERIFY(m_tooltipTabs.AddTool(this, strTip, &rcItem, tab));
+	VERIFY(m_tooltipTabs.AddTool(this, strTip, &rcItem, GetSearchTabToolId(tab)));
 }
 
 CUpDownClient* CSearchResultsSelector::GetClientForTab(int iTab) const
@@ -1937,20 +1959,31 @@ CString CSearchResultsSelector::BuildSearchTooltip(int iTab) const
 
 	if (!pParams->strFileType.IsEmpty())
 		AppendTooltipLine(strDetails, GetResString(_T("TYPE")), pParams->strFileType);
-	if (!pParams->strMinSize.IsEmpty())
-		AppendTooltipLine(strDetails, GetResString(_T("SEARCHMINSIZE")), pParams->strMinSize);
-	if (!pParams->strMaxSize.IsEmpty())
-		AppendTooltipLine(strDetails, GetResString(_T("SEARCHMAXSIZE")), pParams->strMaxSize);
+
+	CString strMinSize(pParams->strMinSize);
+	if (strMinSize.IsEmpty() && pParams->ullMinSize > 0)
+		strMinSize = CastItoXBytes(pParams->ullMinSize);
+	if (!strMinSize.IsEmpty())
+		AppendTooltipLine(strDetails, GetResString(_T("SEARCHMINSIZE")), strMinSize);
+	CString strMaxSize(pParams->strMaxSize);
+	if (strMaxSize.IsEmpty() && pParams->ullMaxSize > 0)
+		strMaxSize = CastItoXBytes(pParams->ullMaxSize);
+	if (!strMaxSize.IsEmpty())
+		AppendTooltipLine(strDetails, GetResString(_T("SEARCHMAXSIZE")), strMaxSize);
 	if (pParams->uAvailability > 0) {
 		CString strAvailability;
 		strAvailability.Format(_T("%u"), pParams->uAvailability);
 		AppendTooltipLine(strDetails, GetResString(_T("SEARCHAVAIL")), strAvailability);
 	}
+	if (!pParams->strExtension.IsEmpty())
+		AppendTooltipLine(strDetails, GetResString(_T("SEARCHEXTENTION")), pParams->strExtension);
 	if (pParams->uComplete > 0) {
 		CString strComplete;
 		strComplete.Format(_T("%u"), pParams->uComplete);
 		AppendTooltipLine(strDetails, GetResString(_T("COMPLETE")), strComplete);
 	}
+	if (!pParams->strCodec.IsEmpty())
+		AppendTooltipLine(strDetails, GetResString(_T("CODEC")), pParams->strCodec);
 	if (pParams->uiMinBitrate > 0) {
 		CString strBitrate;
 		strBitrate.Format(_T("%u"), pParams->uiMinBitrate);
@@ -1961,14 +1994,13 @@ CString CSearchResultsSelector::BuildSearchTooltip(int iTab) const
 		strLength.Format(_T("%u"), pParams->uiMinLength);
 		AppendTooltipLine(strDetails, GetResString(_T("LENGTH")), strLength);
 	}
-	if (!pParams->strCodec.IsEmpty())
-		AppendTooltipLine(strDetails, GetResString(_T("CODEC")), pParams->strCodec);
 	if (!pParams->strTitle.IsEmpty())
 		AppendTooltipLine(strDetails, GetResString(_T("TITLE")), pParams->strTitle);
 	if (!pParams->strAlbum.IsEmpty())
 		AppendTooltipLine(strDetails, GetResString(_T("ALBUM")), pParams->strAlbum);
-	if (!pParams->strArtist.IsEmpty())
-		AppendTooltipLine(strDetails, GetResString(_T("ARTIST")), pParams->strArtist);
+	CString strArtist(pParams->strArtist);
+	if (!strArtist.IsEmpty())
+		AppendTooltipLine(strDetails, GetResString(_T("ARTIST")), strArtist);
 
 	return BuildFormattedTooltip(strQuery, strDetails);
 }
@@ -1983,8 +2015,43 @@ CString CSearchResultsSelector::BuildSharedFilesTooltip(int iTab) const
 		? CString(pClient->GetUserName())
 		: md4str(pClient->GetUserHash());
 	CString strDetails;
+	CString strClientNote(pClient->m_strClientNote);
+
+	AppendTooltipLine(strDetails, GetResString(_T("QL_USERNAME")), strUserName);
 	AppendTooltipLine(strDetails, GetResString(_T("CD_UHASH2")), pClient->HasValidHash() ? md4str(pClient->GetUserHash()) : CString(_T("?")));
-	AppendTooltipLine(strDetails, GetResString(_T("CLIENT_STATUS")), pClient->GetClientStatus());
+
+	CString strIpAddress;
+	if (!pClient->GetConnectIP().IsNull() || !pClient->GetIP().IsNull())
+		strIpAddress = ipstr(!pClient->GetIP().IsNull() ? pClient->GetIP() : pClient->GetConnectIP());
+	strIpAddress.TrimLeft();
+	if (strIpAddress.GetLength() > 1 && strIpAddress[0] == _T(':') && _istdigit(strIpAddress[1])) {
+		strIpAddress.Delete(0, 1);
+		strIpAddress.TrimLeft();
+	}
+	if (!strIpAddress.IsEmpty())
+		AppendTooltipLine(strDetails, GetResString(_T("CD_UIP")), strIpAddress);
+
+	CString strCountry(pClient->m_structClientGeolocationData.Country);
+	CString strCity(pClient->m_structClientGeolocationData.City);
+	CString strCountryCity;
+	if (!strCountry.IsEmpty()) {
+		strCountryCity = strCountry;
+		if (!strCity.IsEmpty())
+			strCountryCity.AppendFormat(_T(", %s"), (LPCTSTR)strCity);
+	} else {
+		strCountryCity = pClient->GetGeolocationData(true);
+	}
+	if (!strCountryCity.IsEmpty()) {
+		const CString strCountryLabel = GetResString(_T("GEOLOCATION"));
+		if (theApp.geolite2 && theApp.geolite2->ShowCountryFlag()) {
+			CString strFlagLine;
+			strFlagLine.Format(_T("%s: <flag=%u>%s"), (LPCTSTR)strCountryLabel, pClient->GetCountryFlagIndex(), (LPCTSTR)strCountryCity);
+			AppendTooltipRawLine(strDetails, strFlagLine);
+		} else {
+			AppendTooltipLine(strDetails, strCountryLabel, strCountryCity);
+		}
+	}
+
 	AppendTooltipLine(strDetails, GetResString(_T("CD_CSOFT")), pClient->GetClientSoftVer().IsEmpty() ? pClient->DbgGetFullClientSoftVer() : pClient->GetClientSoftVer());
 
 	if (!pClient->GetClientModVer().IsEmpty())
@@ -1992,7 +2059,6 @@ CString CSearchResultsSelector::BuildSharedFilesTooltip(int iTab) const
 
 	AppendTooltipLine(strDetails, GetResString(_T("FIRST_SEEN")), FormatTooltipTimeValue(pClient->tFirstSeen));
 	AppendTooltipLine(strDetails, GetResString(_T("LAST_SEEN")), FormatTooltipTimeValue(pClient->tLastSeen));
-	AppendTooltipLine(strDetails, GetResString(_T("SHAREDFILESSTATUS")), pClient->GetSharedFilesStatusText());
 
 	CString strSharedCount;
 	strSharedCount.Format(_T("%u"), pClient->m_uSharedFilesCount);
@@ -2000,12 +2066,6 @@ CString CSearchResultsSelector::BuildSharedFilesTooltip(int iTab) const
 
 	if (pClient->m_tSharedFilesLastQueriedTime > 0)
 		AppendTooltipLine(strDetails, GetResString(_T("SHAREDFILESLASTQUERIED")), FormatTooltipTimeValue(pClient->m_tSharedFilesLastQueriedTime));
-
-	if (!pClient->m_strClientNote.IsEmpty())
-		AppendTooltipLine(strDetails, GetResString(_T("CLIENT_NOTE")), pClient->m_strClientNote);
-
-	if (!pClient->GetConnectIP().IsNull() || !pClient->GetIP().IsNull())
-		AppendTooltipLine(strDetails, GetResString(_T("CD_UIP")), ipstr(!pClient->GetIP().IsNull() ? pClient->GetIP() : pClient->GetConnectIP()));
 
 	if (pClient->GetServerIP() != 0) {
 		CString strServer;
@@ -2018,12 +2078,13 @@ CString CSearchResultsSelector::BuildSharedFilesTooltip(int iTab) const
 	strKad.Format(_T("%s (%u)"), (LPCTSTR)strKadState, pClient->GetKadPort());
 	AppendTooltipLine(strDetails, GetResString(_T("KADEMLIA")), strKad);
 
-	bool bLongCountryName = true;
-	const CString strGeo = pClient->GetGeolocationData(bLongCountryName);
-	if (!strGeo.IsEmpty())
-		AppendTooltipLine(strDetails, GetResString(_T("GEOLOCATION")), strGeo);
+	AppendTooltipLine(strDetails, GetResString(_T("FRIEND")), GetResString(pClient->IsFriend() ? _T("YES") : _T("NO")));
+	AppendTooltipLine(strDetails, GetResString(_T("BAD_CLIENT_TYPE")), pClient->GetPunishmentReason());
+	AppendTooltipLine(strDetails, GetResString(_T("PUNISHMENT")), pClient->GetPunishmentText());
 
-	return BuildFormattedTooltip(strUserName, strDetails);
+	CString strTitle;
+	strTitle.Format(_T("%s: %s"), (LPCTSTR)GetResString(_T("CLIENT_NOTE")), (LPCTSTR)strClientNote);
+	return BuildFormattedTooltip(strTitle, strDetails);
 }
 
 BOOL CSearchResultsSelector::OnCommand(WPARAM wParam, LPARAM lParam)

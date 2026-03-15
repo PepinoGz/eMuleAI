@@ -560,6 +560,29 @@ bool CTag::WriteNewEd2kTag(CFileDataIO &data, EUTF8str eStrEncode) const
 {
 	ASSERT_VALID(this);
 
+	if (IsStr() && eStrEncode == UTF8strRaw) {
+		CUnicodeToUTF8 utf8(*m_pstrVal);
+		const UINT uStrValLen = utf8.GetLength();
+		const uint8 uType = (uStrValLen >= 1 && uStrValLen <= 16) ? (uint8)(TAGTYPE_STR1 + uStrValLen - 1) : TAGTYPE_STRING;
+
+		if (m_sName.IsEmpty()) {
+			ASSERT(m_uName);
+			data.WriteUInt8(uType | 0x80);
+			data.WriteUInt8(m_uName);
+		} else {
+			data.WriteUInt8(uType);
+			UINT uTagNameLen = (UINT)m_sName.GetLength();
+			data.WriteUInt16((uint16)uTagNameLen);
+			data.Write(m_sName, uTagNameLen);
+		}
+
+		if (uType == TAGTYPE_STRING)
+			data.WriteUInt16((uint16)uStrValLen);
+		if (uStrValLen != 0)
+			data.Write((void*)(LPCSTR)utf8, uStrValLen);
+		return true;
+	}
+
 	// Write tag type
 	uint8 uType;
 	UINT uStrValLen = 0;

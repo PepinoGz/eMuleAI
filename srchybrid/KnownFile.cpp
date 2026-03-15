@@ -60,6 +60,20 @@ extern wchar_t* ID3_GetStringW(const ID3_Frame *frame, ID3_FieldID fldName);
 static char THIS_FILE[] = __FILE__;
 #endif
 
+namespace
+{
+	CBarShader* g_pKnownFileShareStatusBar = NULL;
+
+	CBarShader& BB_GetKnownFileShareStatusBar()
+	{
+		if (g_pKnownFileShareStatusBar == NULL)
+			g_pKnownFileShareStatusBar = new CBarShader(16);
+		return *g_pKnownFileShareStatusBar;
+	}
+}
+
+#define s_ShareStatusBar BB_GetKnownFileShareStatusBar()
+
 // Meta data version
 // -----------------
 //	0	untrusted meta data which was received via search results
@@ -143,11 +157,13 @@ void CKnownFile::Dump(CDumpContext &dc) const
 }
 #endif
 
-CBarShader CKnownFile::s_ShareStatusBar(16);
-
 void CKnownFile::ReleaseBarShaderBuffers() noexcept
 {
-	s_ShareStatusBar.ReleaseBuffers();
+	if (g_pKnownFileShareStatusBar != NULL) {
+		g_pKnownFileShareStatusBar->ReleaseBuffers();
+		delete g_pKnownFileShareStatusBar;
+		g_pKnownFileShareStatusBar = NULL;
+	}
 }
 
 void CKnownFile::DrawShareStatusBar(CDC *dc, LPCRECT rect, bool onlygreyrect, bool  bFlat) const

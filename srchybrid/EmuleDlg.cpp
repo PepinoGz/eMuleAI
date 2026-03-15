@@ -18,6 +18,7 @@
 #include "stdafx.h"
 #include <afxinet.h>
 #include "eMuleAI/DarkMode.h"
+#include "eMuleAI/DebugLeakHelper.h"
 #include "ToolTipCtrlX.h"
 
 #define MMNODRV			// mmsystem: Installable driver support
@@ -143,14 +144,32 @@ namespace
 		if (pWnd == NULL)
 			return;
 
-		const bool isFrameWnd = pWnd->IsKindOf(RUNTIME_CLASS(CFrameWnd));
 		HWND hWnd = pWnd->GetSafeHwnd();
 		if (hWnd != NULL && ::IsWindow(hWnd))
 			pWnd->DestroyWindow();
 
-		if (!isFrameWnd)
-			delete pWnd;
+		delete pWnd;
 		pWnd = NULL;
+	}
+
+	template <typename T>
+	void DestroyAndDeleteFrameWndSafe(T*& pWnd, HWND& hWndTracked)
+	{
+		if (hWndTracked == NULL) {
+			pWnd = NULL;
+			return;
+		}
+
+		CWnd* pLive = CWnd::FromHandlePermanent(hWndTracked);
+		if (::IsWindow(hWndTracked)) {
+			if (pLive != NULL)
+				pLive->DestroyWindow();
+			else
+				::DestroyWindow(hWndTracked);
+		}
+
+		pWnd = NULL;
+		hWndTracked = NULL;
 	}
 }
 
@@ -795,6 +814,8 @@ CemuleDlg::CemuleDlg(CWnd* pParent /*=NULL*/)
 	, m_pMiniMule()
 	, m_hTimer()
 	, m_hUPnPTimeOutTimer()
+	, m_hWndSearchDlg()
+	, m_hWndTransferDlg()
 	, notifierenabled()
 {
 	g_uMainThreadId = GetCurrentThreadId();
@@ -880,9 +901,9 @@ CemuleDlg::~CemuleDlg()
 	DestroyAndDeleteWnd(statisticswnd);
 	DestroyAndDeleteWnd(ircwnd);
 	DestroyAndDeleteWnd(chatwnd);
-	DestroyAndDeleteWnd(searchwnd);
+	DestroyAndDeleteFrameWndSafe(searchwnd, m_hWndSearchDlg);
 	DestroyAndDeleteWnd(sharedfileswnd);
-	DestroyAndDeleteWnd(transferwnd);
+	DestroyAndDeleteFrameWndSafe(transferwnd, m_hWndTransferDlg);
 	DestroyAndDeleteWnd(kademliawnd);
 	DestroyAndDeleteWnd(serverwnd);
 	DestroyAndDeleteWnd(preferenceswnd);
@@ -1048,8 +1069,10 @@ BOOL CemuleDlg::OnInitDialog()
 	DialogCreateIndirect(serverwnd, IDD_SERVER);
 	DialogCreateIndirect(sharedfileswnd, IDD_FILES);
 	searchwnd->CreateWnd(this); // can not use 'DialogCreateIndirect' for the SearchWnd, grrr...
+	m_hWndSearchDlg = searchwnd->GetSafeHwnd();
 	DialogCreateIndirect(chatwnd, IDD_CHAT);
 	transferwnd->CreateWnd(this);
+	m_hWndTransferDlg = transferwnd->GetSafeHwnd();
 	DialogCreateIndirect(statisticswnd, IDD_STATISTICS);
 	DialogCreateIndirect(kademliawnd, IDD_KADEMLIAWND);
 	DialogCreateIndirect(ircwnd, IDD_IRC);
@@ -2217,11 +2240,13 @@ LRESULT CemuleDlg::OnWMData(WPARAM, LPARAM lParam)
 
 LRESULT CemuleDlg::OnFileHashed(WPARAM wParam, LPARAM lParam)
 {
-	if (theApp.IsClosing())
-		return FALSE;
-
 	CKnownFile* result = reinterpret_cast<CKnownFile*>(lParam);
 	ASSERT(result->IsKindOf(RUNTIME_CLASS(CKnownFile)));
+
+	if (theApp.IsClosing()) {
+		delete result;
+		return FALSE;
+	}
 
 	if (wParam) {
 		// File hashing finished for a part file when:
@@ -2454,12 +2479,25 @@ void CemuleDlg::OnClose()
 		return;
 	}
 	theApp.m_app_state = APP_STATE_SHUTTINGDOWN;
+
 	notifierenabled = false;
 	//flush queued messages
 	theApp.HandleDebugLogQueue();
 	theApp.HandleLogQueue();
 
 	theApp.ConChecker->Stop();
+
+	// Drain pending hash completion/failure messages to avoid leaking CKnownFile/UnknownFile_Struct on shutdown.
+	MSG pendingMsg;
+	while (::PeekMessage(&pendingMsg, m_hWnd, TM_FINISHEDHASHING, TM_HASHFAILED, PM_REMOVE)) {
+		if (pendingMsg.message == TM_FINISHEDHASHING) {
+			CKnownFile* result = reinterpret_cast<CKnownFile*>(pendingMsg.lParam);
+			delete result;
+		} else if (pendingMsg.message == TM_HASHFAILED) {
+			UnknownFile_Struct* hashed = reinterpret_cast<UnknownFile_Struct*>(pendingMsg.lParam);
+			delete hashed;
+		}
+	}
 
 	Log(_T("Closing eMule"));
 	CloseTTS();

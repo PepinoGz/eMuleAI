@@ -21,6 +21,7 @@
 #include "emule.h"
 #include "log.h"
 #include "eMuleAI/DarkMode.h"
+#include "eMuleAI/GeoLite2.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -124,6 +125,37 @@ namespace
 		const int iX = rcLine.left;
 		const int iY = rcLine.top + max(0, (rcLine.Height() - headerIcon.size.cy) / 2);
 		SafeImageListDraw(headerIcon.pImageList, pdc, headerIcon.iImage, CPoint(iX, iY), ILD_TRANSPARENT);
+	}
+
+	static bool ParseFlagMarker(const CString& input, CString& output, int& flagIndex, int& flagPos)
+	{
+		static const CString kFlagPrefix(_T("<flag="));
+		output = input;
+		flagIndex = -1;
+		flagPos = -1;
+
+		CString lowerInput(input);
+		lowerInput.MakeLower();
+		const int iStart = lowerInput.Find(kFlagPrefix);
+		if (iStart < 0)
+			return false;
+
+		const int iEnd = lowerInput.Find(_T('>'), iStart + kFlagPrefix.GetLength());
+		if (iEnd <= iStart + kFlagPrefix.GetLength())
+			return false;
+
+		const CString strIndex = input.Mid(iStart + kFlagPrefix.GetLength(), iEnd - (iStart + kFlagPrefix.GetLength()));
+		flagIndex = _tstoi(strIndex);
+
+		const CString strOutputRaw = input.Left(iStart) + input.Mid(iEnd + 1);
+		output = strOutputRaw;
+		output.TrimLeft();
+		flagPos = iStart - (strOutputRaw.GetLength() - output.GetLength());
+		if (flagPos < 0)
+			flagPos = 0;
+		if (flagPos > output.GetLength())
+			flagPos = output.GetLength();
+		return true;
 	}
 }
 
@@ -329,6 +361,8 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 	const bool bShowHeaderIcon = bHasHeaderIcon && !bShowFileIcon;
 	const int iHeaderIconSpacing = bShowHeaderIcon ? 8 : 0;
 	const int iHeaderIconDrawingWidth = bShowHeaderIcon ? (headerIcon.size.cx + iHeaderIconSpacing) : 0;
+	const bool bFlagsAvailable = theApp.geolite2 && theApp.geolite2->ShowCountryFlag()
+		&& theApp.geolite2->GetFlagImageList() && theApp.geolite2->GetFlagImageList()->GetSafeHandle() != NULL;
 	if (bShowFileIcon) {
 		int iPosNL = strText.Find(_T('\n'));
 		if (iPosNL > 0) {
@@ -354,45 +388,58 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 	static const RECT rcBounding = { 0, 0, 32767, 32767 };
 	bool bMainTitleMeasured = false;
 	for (int iPos = 0; iPos >= 0;) {
+		const int iLineStart = iPos;
 		const CString &strLine(GetNextString(strText, _T('\n'), iPos));
-		const bool bLineInCaption = bHasCaption && (iPos <= iCaptionEnd + strLine.GetLength());
-		int iColon = bAutoFormatText ? strLine.Find(_T(':')) : -1;
+		CString strLineText;
+		int iFlagIndex = -1;
+		int iFlagPos = -1;
+		const bool bFlagMarker = ParseFlagMarker(strLine, strLineText, iFlagIndex, iFlagPos);
+		const bool bLineHasFlag = bFlagsAvailable && bFlagMarker;
+		const int iLineFlagWidth = bLineHasFlag ? (FLAG_WIDTH + 6) : 0;
+		const bool bLineInCaption = bHasCaption && iLineStart <= iCaptionEnd && iPos <= iCaptionEnd + strLine.GetLength();
+		int iColon = bAutoFormatText ? strLineText.Find(_T(':')) : -1;
+		const bool bFlagInCol2 = bLineHasFlag && iColon >= 0 && iFlagPos > iColon;
+		const int iCol2FlagWidth = bFlagInCol2 ? iLineFlagWidth : 0;
 		if (iColon >= 0) {
 			CFont *pOldFont = m_bCol1Bold ? pdc->SelectObject(&m_fontBold) : NULL;
-			siz = pdc->GetTextExtent(strLine, iColon + 1);
+			siz = pdc->GetTextExtent(strLineText, iColon + 1);
 			if (pOldFont)
 				pdc->SelectObject(pOldFont);
 			iMaxCol1Width = maxi(iMaxCol1Width, (int)(siz.cx + ((bShowFileIcon && iPos <= iCaptionEnd + strLine.GetLength()) ? iIconDrawingWidth : 0)));
-			iTextHeight = siz.cy + iLineHeightOff; // update height with 'col1' string, because 'col2' string might be empty and therefore has no height
+			const int iLineHeight = max(siz.cy, bLineHasFlag ? FLAG_HEIGHT : 0) + iLineHeightOff;
+			iTextHeight = max(iTextHeight, iLineHeight); // Ensure tallest line height is used for key/value rows
 			if (bLineInCaption)
-				iCaptionHeight += siz.cy + iLineHeightOff;
+				iCaptionHeight += iLineHeight;
 			else
-				sizText.cy += siz.cy + iLineHeightOff;
+				sizText.cy += iLineHeight;
 
-			LPCTSTR pszCol2 = (LPCTSTR)strLine + iColon + 1;
+			LPCTSTR pszCol2 = (LPCTSTR)strLineText + iColon + 1;
 			while (_istspace(*pszCol2))
 				++pszCol2;
 			if (*pszCol2 != _T('\0')) {
-				siz = pdc->GetTextExtent(pszCol2, (int)(((LPCTSTR)strLine + strLine.GetLength()) - pszCol2));
-				iMaxCol2Width = max(iMaxCol2Width, siz.cx);
+				siz = pdc->GetTextExtent(pszCol2, (int)(((LPCTSTR)strLineText + strLineText.GetLength()) - pszCol2));
+				iMaxCol2Width = max(iMaxCol2Width, siz.cx + iCol2FlagWidth);
+			} else if (iCol2FlagWidth > 0) {
+				iMaxCol2Width = max(iMaxCol2Width, iCol2FlagWidth);
 			}
 		} else if (bShowFileIcon && iPos <= iCaptionEnd && iPos == strLine.GetLength() + 1) {
 			// file name, printed bold on top without any tabbing or desc
 			CFont *pOldFont = m_bCol1Bold ? pdc->SelectObject(&m_fontBold) : NULL;
-			siz = pdc->GetTextExtent(strLine);
+			siz = pdc->GetTextExtent(strLineText);
 			if (pOldFont)
 				pdc->SelectObject(pOldFont);
 			iMaxSingleLineWidth = max(iMaxSingleLineWidth, siz.cx + iIconDrawingWidth + (bMainTitleMeasured ? 0 : iHeaderIconDrawingWidth));
 			iCaptionHeight += siz.cy + iLineHeightOff;
-			if (!strLine.IsEmpty())
+			if (!strLineText.IsEmpty())
 				bMainTitleMeasured = true;
 		} else if (!strLine.IsEmpty() && strLine.Compare(_T("<br>")) != 0 && strLine.Compare(_T("<br_head>")) != 0) {
-			siz = pdc->GetTextExtent(strLine);
-			iMaxSingleLineWidth = maxi(iMaxSingleLineWidth, (int)(siz.cx + ((bShowFileIcon && iPos <= iCaptionEnd) ? iIconDrawingWidth : 0) + ((bLineInCaption && !bMainTitleMeasured) ? iHeaderIconDrawingWidth : 0)));
+			siz = pdc->GetTextExtent(strLineText);
+			const int iLineHeight = max(siz.cy, bLineHasFlag ? FLAG_HEIGHT : 0) + iLineHeightOff;
+			iMaxSingleLineWidth = maxi(iMaxSingleLineWidth, (int)(siz.cx + iLineFlagWidth + ((bShowFileIcon && iPos <= iCaptionEnd) ? iIconDrawingWidth : 0) + ((bLineInCaption && !bMainTitleMeasured) ? iHeaderIconDrawingWidth : 0)));
 			if (bLineInCaption)
-				iCaptionHeight += siz.cy + iLineHeightOff;
+				iCaptionHeight += iLineHeight;
 			else
-				sizText.cy += siz.cy + iLineHeightOff;
+				sizText.cy += iLineHeight;
 			if (bLineInCaption)
 				bMainTitleMeasured = true;
 		} else {
@@ -436,10 +483,18 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 		bool bHeaderIconDrawn = false;
 
 		for (int iPos = 0; iPos >= 0;) {
+			const int iLineStart = iPos;
 			const CString &strLine(GetNextString(strText, _T('\n'), iPos));
-			const bool bLineInCaption = bHasCaption && (iPos <= iCaptionEnd + strLine.GetLength());
-			const bool bIsMainTitleLine = bLineInCaption && !bMainTitleDrawn && !strLine.IsEmpty() && strLine != _T("<br>") && strLine != _T("<br_head>");
-			int iColon = bAutoFormatText ? strLine.Find(_T(':')) : -1;
+		CString strLineText;
+		int iFlagIndex = -1;
+		int iFlagPos = -1;
+		const bool bFlagMarker = ParseFlagMarker(strLine, strLineText, iFlagIndex, iFlagPos);
+		const bool bLineHasFlag = bFlagsAvailable && bFlagMarker;
+		const int iLineFlagWidth = bLineHasFlag ? (FLAG_WIDTH + 6) : 0;
+		const bool bLineInCaption = bHasCaption && iLineStart <= iCaptionEnd && iPos <= iCaptionEnd + strLine.GetLength();
+		const bool bIsMainTitleLine = bLineInCaption && !bMainTitleDrawn && !strLine.IsEmpty() && strLine != _T("<br>") && strLine != _T("<br_head>");
+		int iColon = bAutoFormatText ? strLineText.Find(_T(':')) : -1;
+		const bool bFlagInCol2 = bLineHasFlag && iColon >= 0 && iFlagPos > iColon;
 			CRect rcDT;
 			if (!bShowFileIcon || (unsigned)iPos > (unsigned)iCaptionEnd + strLine.GetLength())
 				rcDT.SetRect(ptText.x, ptText.y, ptText.x + iMaxCol1Width, ptText.y + iTextHeight);
@@ -450,19 +505,25 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 				if (iColon > 0) {
 					CFont *pOldFont = m_bCol1Bold ? pdc->SelectObject(&m_fontBold) : NULL;
 					pdc->SetTextColor(palette.crKeyText);
-					pdc->DrawText(strLine, iColon + 1, &rcDT, m_dwCol1DrawTextFlags);
+					pdc->DrawText(strLineText, iColon + 1, &rcDT, m_dwCol1DrawTextFlags);
 					if (pOldFont)
 						pdc->SelectObject(pOldFont);
 				}
 
-				LPCTSTR pszCol2 = (LPCTSTR)strLine + iColon + 1;
+				LPCTSTR pszCol2 = (LPCTSTR)strLineText + iColon + 1;
 				while (_istspace(*pszCol2))
 					++pszCol2;
-				if (*pszCol2 != _T('\0')) {
+				if (*pszCol2 != _T('\0') || bFlagInCol2) {
 					rcDT.left = ptText.x + iMaxCol1Width + iMiddleMargin;
 					rcDT.right = rcDT.left + iMaxCol2Width;
 					pdc->SetTextColor(palette.crValueText);
-					pdc->DrawText(pszCol2, (int)(((LPCTSTR)strLine + strLine.GetLength()) - pszCol2), &rcDT, m_dwCol2DrawTextFlags);
+					if (bFlagInCol2 && theApp.geolite2 && theApp.geolite2->GetFlagImageList() && theApp.geolite2->GetFlagImageList()->GetSafeHandle() != NULL) {
+						const int iPosY = ptText.y + max(0, (iTextHeight - FLAG_HEIGHT) / 2);
+						::ImageList_Draw(theApp.geolite2->GetFlagImageList()->GetSafeHandle(), iFlagIndex, pdc->GetSafeHdc(), rcDT.left, iPosY, ILD_TRANSPARENT);
+						rcDT.left += iLineFlagWidth;
+					}
+					if (*pszCol2 != _T('\0'))
+						pdc->DrawText(pszCol2, (int)(((LPCTSTR)strLineText + strLineText.GetLength()) - pszCol2), &rcDT, m_dwCol2DrawTextFlags);
 				}
 
 				ptText.y += iTextHeight;
@@ -471,7 +532,7 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 				// first line on special file icon tab - draw icon and bold filename
 				CFont *pOldFont = m_bCol1Bold ? pdc->SelectObject(&m_fontBold) : NULL;
 				pdc->SetTextColor(bMainTitleDrawn ? palette.crTitleText : palette.crMainTitleText);
-				pdc->DrawText(strLine, rect, m_dwCol1DrawTextFlags);
+				pdc->DrawText(strLineText, rect, m_dwCol1DrawTextFlags);
 				if (pOldFont)
 					pdc->SelectObject(pOldFont);
 				if (bShowHeaderIcon && !bHeaderIconDrawn) {
@@ -483,7 +544,7 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 				bMainTitleDrawn = true;
 
 				ptText.y += iTextHeight;
-				int iImage = theApp.GetFileTypeSystemImageIdx(strLine, -1, true);
+				int iImage = theApp.GetFileTypeSystemImageIdx(strLineText, -1, true);
 				if (theApp.GetBigSystemImageList() != NULL) {
 					int iPosY = rcDT.top;
 					if (iCaptionHeight > iIconHeight)
@@ -491,16 +552,27 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 					::ImageList_Draw(theApp.GetBigSystemImageList(), iImage, pdc->GetSafeHdc(), ptText.x, iPosY, ILD_TRANSPARENT);
 				}
 			} else {
-				bool bIsBrHeadLine = !bAutoFormatText || (strLine != _T("<br>"));
-				if (!bIsBrHeadLine || (bIsBrHeadLine = (strLine == _T("<br_head>"))) == true) {
-					CPen pen(PS_SOLID, 1, palette.crSeparator);
-					CPen *pOP = pdc->SelectObject(&pen);
-					if (bIsBrHeadLine)
-						ptText.y = iCaptionHeight;
-					pdc->MoveTo(ptText.x, ptText.y + ((iTextHeight - 2) / 2));
-					pdc->LineTo(ptText.x + iMaxSingleLineWidth, ptText.y + ((iTextHeight - 2) / 2));
-					ptText.y += iTextHeight;
-					pdc->SelectObject(pOP);
+				if (bLineHasFlag && strLine != _T("<br>") && strLine != _T("<br_head>")) {
+					const int iFlagLineHeight = max(iTextHeight, FLAG_HEIGHT + iLineHeightOff);
+					if (theApp.geolite2 && theApp.geolite2->GetFlagImageList() && theApp.geolite2->GetFlagImageList()->GetSafeHandle() != NULL) {
+						const int iPosY = ptText.y + max(0, (iFlagLineHeight - FLAG_HEIGHT) / 2);
+						::ImageList_Draw(theApp.geolite2->GetFlagImageList()->GetSafeHandle(), iFlagIndex, pdc->GetSafeHdc(), ptText.x, iPosY, ILD_TRANSPARENT);
+					}
+					CRect rcLine(ptText.x + iLineFlagWidth, ptText.y, ptText.x + iMaxSingleLineWidth, ptText.y + iFlagLineHeight);
+					pdc->SetTextColor(palette.crValueText);
+					pdc->DrawText(strLineText.IsEmpty() ? _T(" ") : strLineText, rcLine, m_dwCol1DrawTextFlags);
+					ptText.y += iFlagLineHeight;
+				} else {
+					bool bIsBrHeadLine = !bAutoFormatText || (strLine != _T("<br>"));
+					if (!bIsBrHeadLine || (bIsBrHeadLine = (strLine == _T("<br_head>"))) == true) {
+						CPen pen(PS_SOLID, 1, palette.crSeparator);
+						CPen *pOP = pdc->SelectObject(&pen);
+						if (bIsBrHeadLine)
+							ptText.y = iCaptionHeight;
+						pdc->MoveTo(ptText.x, ptText.y + ((iTextHeight - 2) / 2));
+						pdc->LineTo(ptText.x + iMaxSingleLineWidth, ptText.y + ((iTextHeight - 2) / 2));
+						ptText.y += iTextHeight;
+						pdc->SelectObject(pOP);
 					} else {
 						// Text is written in the currently selected font. If 'nTabPositions' is 0 and 'lpnTabStopPositions' is NULL,
 						// tabs are expanded to eight times the average character width.
@@ -508,7 +580,7 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 							CFont* pOldFont = m_bCol1Bold ? pdc->SelectObject(&m_fontBold) : NULL;
 							pdc->SetTextColor(bMainTitleDrawn ? palette.crTitleText : palette.crMainTitleText);
 							CRect rcTitle(ptText.x + ((bShowHeaderIcon && !bHeaderIconDrawn && bIsMainTitleLine) ? iHeaderIconDrawingWidth : 0), ptText.y, ptText.x + iMaxSingleLineWidth, ptText.y + iTextHeight);
-							pdc->DrawText(strLine.IsEmpty() ? _T(" ") : strLine, rcTitle, m_dwCol1DrawTextFlags);
+							pdc->DrawText(strLineText.IsEmpty() ? _T(" ") : strLineText, rcTitle, m_dwCol1DrawTextFlags);
 							if (pOldFont)
 								pdc->SelectObject(pOldFont);
 							if (bShowHeaderIcon && !bHeaderIconDrawn && bIsMainTitleLine) {
@@ -516,20 +588,21 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 								DrawTooltipHeaderIcon(headerIcon, pdc, rcIcon);
 								bHeaderIconDrawn = true;
 							}
-							if (!strLine.IsEmpty())
+							if (!strLineText.IsEmpty())
 								bMainTitleDrawn = true;
 							ptText.y += iTextHeight;
 						} else {
 							pdc->SetTextColor(palette.crValueText);
-							if (strLine.IsEmpty()) // Win98: To draw an empty line we need to output at least a space.
+							if (strLineText.IsEmpty()) // Win98: To draw an empty line we need to output at least a space.
 								siz = pdc->TabbedTextOut(ptText.x, ptText.y, _T(" "), 1, NULL, 0);
 							else
-								siz = pdc->TabbedTextOut(ptText.x, ptText.y, strLine, strLine.GetLength(), NULL, 0);
+								siz = pdc->TabbedTextOut(ptText.x, ptText.y, strLineText, strLineText.GetLength(), NULL, 0);
 							ptText.y += siz.cy + iLineHeightOff;
 						}
 					}
 				}
 			}
+		}
 		if (crOldBkColor != CLR_INVALID)
 			pdc->SetBkColor(crOldBkColor);
 		if (iOldBkMode != 0)

@@ -988,7 +988,6 @@ public:
 	// GUI helpers
 	//
 	static CBarShader s_StatusBar;
-	static CBarShader s_UpStatusBar;
 	static void ReleaseBarShaders() noexcept;
 	CTypedPtrList<CPtrList, Pending_Block_Struct*> m_PendingBlocks_list;
 	typedef CMap<const CPartFile*, const CPartFile*, DWORD, DWORD> CFileReaskTimesMap;

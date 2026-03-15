@@ -19,6 +19,7 @@
 #include "resource.h"
 #include "OtherFunctions.h"
 #include "MediaInfo.h"
+#include "MediaInfo/MediaInfo_Config.h"
 #include "SafeFile.h"
 #include <io.h>
 #include <fcntl.h>

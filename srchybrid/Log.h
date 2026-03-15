@@ -68,6 +68,9 @@ public:
 	bool IsOpen() const;
 	const CString& GetFilePath() const;
 	bool SetFilePath(LPCTSTR pszFilePath);
+#if defined(_DEBUG) && defined(DEBUGLEAKHELPER)
+	void ClearFilePath();
+#endif
 	void SetMaxFileSize(UINT uMaxFileSize);
 	bool SetFileFormat(const ELogFileFormat eFileFormat);
 

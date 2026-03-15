@@ -71,6 +71,16 @@ CSearchParamsWnd::CSearchParamsWnd()
 
 CSearchParamsWnd::~CSearchParamsWnd()
 {
+	ReleaseSearchAutoComplete();
+}
+
+void CSearchParamsWnd::ReleaseSearchAutoComplete()
+{
+	if (m_pacSearchString) {
+		m_pacSearchString->Unbind();
+		m_pacSearchString->Release();
+		m_pacSearchString = NULL;
+	}
 }
 
 void CSearchParamsWnd::DoDataExchange(CDataExchange *pDX)
@@ -138,10 +148,7 @@ LRESULT CSearchParamsWnd::OnInitDialog(WPARAM, LPARAM)
 	ScreenToClient(m_rcCancel);
 
 	if (thePrefs.GetUseAutocompletion()) {
-		if (m_pacSearchString) {
-			m_pacSearchString->Unbind();
-			m_pacSearchString->Release();
-		}
+		ReleaseSearchAutoComplete();
 		m_pacSearchString = new CCustomAutoComplete();
 		m_pacSearchString->AddRef();
 		if (m_pacSearchString->Bind(m_ctlName, ACO_UPDOWNKEYDROPSLIST | ACO_AUTOSUGGEST))
@@ -437,11 +444,9 @@ void CSearchParamsWnd::SetAllIcons()
 
 void CSearchParamsWnd::OnDestroy()
 {
-	if (m_pacSearchString) {
-		m_pacSearchString->Unbind();
-		m_pacSearchString->Release();
-		m_pacSearchString = NULL;
-	}
+	ReleaseSearchAutoComplete();
+	if (m_ctlOpts.m_hWnd)
+		m_ctlOpts.DeleteAllItems();
 
 	CDialogBar::OnDestroy();
 	m_imlSearchMethods.DeleteImageList();

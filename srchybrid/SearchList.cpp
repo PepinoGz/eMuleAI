@@ -36,6 +36,9 @@
 #include "SearchDlg.h"
 #include "SearchListCtrl.h"
 #include "Log.h"
+#ifdef _DEBUG
+#include "eMuleAI\DebugLeakHelper.h"
+#endif
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -54,13 +57,37 @@ namespace
 		}
 		return true;
 	}
-}
 
+#ifdef _DEBUG
+	void __cdecl ClearStoredSearchesBeforeLeakDump()
+	{
+		if (theApp.emuledlg != NULL && theApp.emuledlg->searchwnd != NULL && ::IsWindow(theApp.emuledlg->searchwnd->m_hWnd)) {
+			theApp.emuledlg->searchwnd->DeleteAllSearches();
+			return;
+		}
+
+		if (theApp.searchlist != NULL) {
+			theApp.searchlist->Clear();
+		}
+	}
+#endif
+	static bool ShouldSkipSearchPersistenceForManualLeakDump()
+	{
+#if defined(_DEBUG) && defined(DEBUGLEAKHELPER)
+		TCHAR szManualDump[8] = {};
+		const DWORD dwManualDump = GetEnvironmentVariable(_T("EMULE_CRT_FORCE_MANUAL_DUMP"), szManualDump, _countof(szManualDump));
+		return dwManualDump > 0 && dwManualDump < _countof(szManualDump) && szManualDump[0] != _T('0');
+#else
+		return false;
+#endif
+	}
+}
 
 #define SPAMFILTER_FILENAME		_T("SearchSpam.met")
 #define SPAMFILTER_FILENAME_TMP	 _T("SearchSpam.met.tmp")
 #define STOREDSEARCHES_FILENAME	_T("StoredSearches.met")
 #define STOREDSEARCHES_FILENAME_TMP	_T("StoredSearches.met.tmp")
+
 #define STOREDSEARCHES_VERSION	102
 ///////////////////////////////////////////////////////////////////////////////
 // CSearchList
@@ -73,6 +100,9 @@ CSearchList::CSearchList()
 	, m_dwKadLastReloadTick() 
 {
 	m_nLastSaved = ::GetTickCount();
+#ifdef _DEBUG
+	DebugLeakHelper::RegisterPreDumpHook(&ClearStoredSearchesBeforeLeakDump);
+#endif
 }
 
 CSearchList::~CSearchList()
@@ -431,15 +461,29 @@ bool CSearchList::AddToList(CSearchFile* toadd, bool bClientResponse, uint32 dwF
 	CString strNameWithoutKeyword;
 	CString strName(toadd->GetFileName());
 	strName.MakeLower();
+	strNameWithoutKeyword.GetBuffer(strName.GetLength());
+	strNameWithoutKeyword.ReleaseBuffer(0);
+	const LPCTSTR pszName = strName;
+	const int nNameLength = strName.GetLength();
 
-	for (int iPos = 0; iPos >= 0;) {
-		const CString &sToken(strName.Tokenize(_T(".[]()!-'_ "), iPos));
-		if (sToken.IsEmpty())
+	for (int iPos = 0; iPos < nNameLength;) {
+		while (iPos < nNameLength && _tcschr(_T(".[]()!-'_ "), pszName[iPos]) != NULL)
+			++iPos;
+		if (iPos >= nNameLength)
+			break;
+
+		const int nTokenStart = iPos;
+		while (iPos < nNameLength && _tcschr(_T(".[]()!-'_ "), pszName[iPos]) == NULL)
+			++iPos;
+		const int nTokenLength = iPos - nTokenStart;
+		if (nTokenLength <= 0)
 			continue;
+
 		bool bFound = false;
 		if (!bClientResponse && toadd->GetSearchID() == m_nCurED2KSearchID) {
 			for (INT_PTR i = m_astrSpamCheckCurSearchExp.GetCount(); --i >= 0;) {
-				if (sToken == m_astrSpamCheckCurSearchExp[i]) {
+				const CString& strSpamToken = m_astrSpamCheckCurSearchExp[i];
+				if (strSpamToken.GetLength() == nTokenLength && _tcsncmp((LPCTSTR)strSpamToken, pszName + nTokenStart, nTokenLength) == 0) {
 					bFound = true;
 					break;
 				}
@@ -447,8 +491,8 @@ bool CSearchList::AddToList(CSearchFile* toadd, bool bClientResponse, uint32 dwF
 		}
 		if (!bFound) {
 			if (!strNameWithoutKeyword.IsEmpty())
-				strNameWithoutKeyword += _T(' ');
-			strNameWithoutKeyword += sToken;
+				strNameWithoutKeyword.AppendChar(_T(' '));
+			strNameWithoutKeyword.Append(pszName + nTokenStart, nTokenLength);
 		}
 	}
 	toadd->SetNameWithoutKeyword(strNameWithoutKeyword);
@@ -1629,6 +1673,9 @@ void CSearchList::LoadSpamFilter()
 
 void CSearchList::SaveSpamFilter()
 {
+	if (ShouldSkipSearchPersistenceForManualLeakDump())
+		return;
+
 	if (!m_bSpamFilterLoaded)
 		return;
 
@@ -1711,6 +1758,9 @@ void CSearchList::SaveSpamFilter()
 
 void CSearchList::StoreSearches()
 {
+	if (ShouldSkipSearchPersistenceForManualLeakDump())
+		return;
+
 	m_nLastSaved = ::GetTickCount();
 
 	// store open searches on shutdown to restore them on the next startup

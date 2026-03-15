@@ -107,8 +107,6 @@ int CTransferDlg::OnCreate(LPCREATESTRUCT lpCreateStruct)
 void CTransferDlg::OnClose()
 {
 	SaveBarState(DOWNLOAD_TOOLBAR_PROFILE);
-	if (theApp.IsClosing())
-		return;
 	CFrameWnd::OnClose();
 }
 

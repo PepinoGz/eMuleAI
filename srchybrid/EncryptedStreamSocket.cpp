@@ -118,7 +118,23 @@ static unsigned char dh768_p[] = {
 		0x8F,0x05,0x15,0x0F,0x54,0x8B,0x5F,0x43,0x6A,0xF7,0x0D,0xF3
 };
 
-static CryptoPP::AutoSeededRandomPool cryptRandomGen;
+namespace
+{
+	CryptoPP::AutoSeededRandomPool* g_pTcpCryptRandomGen = NULL;
+
+	CryptoPP::AutoSeededRandomPool& GetTcpCryptRandomGen()
+	{
+		if (g_pTcpCryptRandomGen == NULL)
+			g_pTcpCryptRandomGen = new CryptoPP::AutoSeededRandomPool();
+		return *g_pTcpCryptRandomGen;
+	}
+}
+
+void FreeEncryptedStreamSocketRandomPool()
+{
+	delete g_pTcpCryptRandomGen;
+	g_pTcpCryptRandomGen = NULL;
+}
 
 IMPLEMENT_DYNAMIC(CEncryptedStreamSocket, CAsyncSocketEx)
 
@@ -383,7 +399,7 @@ void CEncryptedStreamSocket::SetConnectionEncryption(bool bEnabled, const uchar 
 		// create obfuscation keys, see on top for key format
 
 		// use the crypt random generator
-		m_nRandomKeyPart = cryptRandomGen.GenerateWord32();
+		m_nRandomKeyPart = GetTcpCryptRandomGen().GenerateWord32();
 
 		uchar achKeyData[21];
 		md4cpy(achKeyData, pTargetClientHash);
@@ -434,10 +450,10 @@ void CEncryptedStreamSocket::StartNegotiation(bool bOutgoing)
 		const uint8 bySupportedEncryptionMethod = ENM_OBFUSCATION; // we do not support any other encryption in this version
 		fileRequest.WriteUInt8(bySupportedEncryptionMethod);
 		fileRequest.WriteUInt8(bySupportedEncryptionMethod); // so we also prefer this one
-		uint8 byPadding = (uint8)(cryptRandomGen.GenerateByte() % (thePrefs.GetCryptTCPPaddingLength() + 1));
+		uint8 byPadding = (uint8)(GetTcpCryptRandomGen().GenerateByte() % (thePrefs.GetCryptTCPPaddingLength() + 1));
 		fileRequest.WriteUInt8(byPadding);
 		for (int i = byPadding; --i >= 0;)
-			fileRequest.WriteUInt8(cryptRandomGen.GenerateByte());
+			fileRequest.WriteUInt8(GetTcpCryptRandomGen().GenerateByte());
 
 		m_NegotiatingState = ONS_BASIC_CLIENTB_MAGICVALUE;
 		m_StreamCryptState = ECS_NEGOTIATING;
@@ -449,7 +465,7 @@ void CEncryptedStreamSocket::StartNegotiation(bool bOutgoing)
 		const uint8 bySemiRandomNotProtocolMarker = GetSemiRandomNotProtocolMarker();
 		fileRequest.WriteUInt8(bySemiRandomNotProtocolMarker);
 
-		m_cryptDHA.Randomize(cryptRandomGen, DHAGREEMENT_A_BITS); // our random a
+		m_cryptDHA.Randomize(GetTcpCryptRandomGen(), DHAGREEMENT_A_BITS); // our random a
 		ASSERT(m_cryptDHA.MinEncodedSize() <= DHAGREEMENT_A_BITS / 8);
 		CryptoPP::Integer cryptDHPrime((byte*)dh768_p, PRIMESIZE_BYTES);  // our fixed prime
 		// calculate g^a % p
@@ -460,10 +476,10 @@ void CEncryptedStreamSocket::StartNegotiation(bool bOutgoing)
 		cryptDHGexpAmodP.Encode(aBuffer, PRIMESIZE_BYTES);
 
 		fileRequest.Write(aBuffer, PRIMESIZE_BYTES);
-		uint8 byPadding = (uint8)(cryptRandomGen.GenerateByte() % 16); // add random padding
+		uint8 byPadding = (uint8)(GetTcpCryptRandomGen().GenerateByte() % 16); // add random padding
 		fileRequest.WriteUInt8(byPadding);
 		for (int i = byPadding; --i >= 0;)
-			fileRequest.WriteUInt8(cryptRandomGen.GenerateByte());
+			fileRequest.WriteUInt8(GetTcpCryptRandomGen().GenerateByte());
 
 		m_NegotiatingState = ONS_BASIC_SERVER_DHANSWER;
 		m_StreamCryptState = ECS_NEGOTIATING;
@@ -566,7 +582,7 @@ int CEncryptedStreamSocket::Negotiate(const uchar *pBuffer, int nLen)
 					int nSockAddrLen = sizeof sockAddr;
 					GetPeerName((LPSOCKADDR)&sockAddr, &nSockAddrLen);
 					const uint8 byPaddingLen = theApp.serverconnect->AwaitingTestFromIP(sockAddr.sin_addr.s_addr) ? 16 : (thePrefs.GetCryptTCPPaddingLength() + 1);
-					uint8 byPadding = (uint8)(cryptRandomGen.GenerateByte() % byPaddingLen);
+					uint8 byPadding = (uint8)(GetTcpCryptRandomGen().GenerateByte() % byPaddingLen);
 
 					fileResponse.WriteUInt8(byPadding);
 					for (int i = byPadding; --i >= 0;)
@@ -664,7 +680,7 @@ int CEncryptedStreamSocket::Negotiate(const uchar *pBuffer, int nLen)
 					fileResponse.WriteUInt32(MAGICVALUE_SYNC);
 					const uint8 bySelectedEncryptionMethod = ENM_OBFUSCATION; // we do not support any further encryption in this version, so no need to look which the other client preferred
 					fileResponse.WriteUInt8(bySelectedEncryptionMethod);
-					uint8 byPadding = (uint8)(cryptRandomGen.GenerateByte() % 16);
+					uint8 byPadding = (uint8)(GetTcpCryptRandomGen().GenerateByte() % 16);
 					fileResponse.WriteUInt8(byPadding);
 					for (int i = byPadding; --i >= 0;)
 						fileResponse.WriteUInt8((uint8)rand());
@@ -766,7 +782,7 @@ CString CEncryptedStreamSocket::DbgGetIPString()
 uint8 CEncryptedStreamSocket::GetSemiRandomNotProtocolMarker()
 {
 	for (int i = 32; --i >= 0;) {
-		uint8 bySemiRandomNotProtocolMarker = cryptRandomGen.GenerateByte();
+		uint8 bySemiRandomNotProtocolMarker = GetTcpCryptRandomGen().GenerateByte();
 		switch (bySemiRandomNotProtocolMarker) {
 		case OP_EDONKEYPROT:
 		case OP_PACKEDPROT:

@@ -275,6 +275,17 @@ bool CLogFile::SetFilePath(LPCTSTR pszFilePath)
 	return true;
 }
 
+#if defined(_DEBUG) && defined(DEBUGLEAKHELPER)
+void CLogFile::ClearFilePath()
+{
+	if (IsOpen())
+		return;
+	// Debug-only leak snapshot hygiene for CString path buffers.
+	m_strFilePath.Empty();
+	m_strFilePath.FreeExtra();
+}
+#endif
+
 void CLogFile::SetMaxFileSize(UINT uMaxFileSize)
 {
 	if (uMaxFileSize < 0x10000u)

@@ -187,7 +187,23 @@ namespace
 	}
 }
 
-CPreferences thePrefs;
+namespace
+{
+	CPreferences* g_pPreferences = NULL;
+}
+
+CPreferences& BB_GetPreferences()
+{
+	if (g_pPreferences == NULL)
+		g_pPreferences = new CPreferences;
+	return *g_pPreferences;
+}
+
+void BB_FreePreferences() noexcept
+{
+	delete g_pPreferences;
+	g_pPreferences = NULL;
+}
 
 CString CPreferences::m_astrDefaultDirs[EMULE_DIRECTORY_COUNT];
 bool	CPreferences::m_abDefaultDirsCreated[EMULE_DIRECTORY_COUNT] = {};
@@ -1129,6 +1145,72 @@ void CPreferences::Uninit()
 
 	// Free dynamically allocated preference structures before CRT leak detection kicks in
 	thePrefs.ReleaseExtStruct();
+
+#if defined(_DEBUG) && defined(DEBUGLEAKHELPER)
+	// Debug-only leak snapshot hygiene: release benign caches to reduce CRT false positives.
+	auto ForceReleaseCString = [](CString& str) {
+		if (str.IsEmpty())
+			str = _T(" ");
+		str.Empty();
+	};
+	strNick.Empty();
+	m_strBindAddrA.Empty();
+	ForceReleaseCString(m_strBindAddrW);
+	m_strIncomingDir.Empty();
+	tempdir.RemoveAll();
+	ForceReleaseCString(m_strSkinProfile);
+	m_strSkinProfileDir.Empty();
+	m_strStatsExpandedTreeItems.Empty();
+	m_strUiLanguage.Empty();
+	notifierConfiguration.Empty();
+	ForceReleaseCString(notifierSoundFile);
+	m_strIRCServer.Empty();
+	m_strIRCNick.Empty();
+	m_strIRCChannelFilter.Empty();
+	ForceReleaseCString(m_strIRCPerformString);
+	ForceReleaseCString(m_strYourHostname);
+	m_strTxtEditor.Empty();
+	m_strVideoPlayer.Empty();
+	ForceReleaseCString(m_strVideoPlayerArgs);
+	ForceReleaseCString(versioncheckLastKnownVersionOnServer);
+	messageFilter.Empty();
+	commentFilter.Empty();
+	filenameCleanups.Empty();
+	m_strDateTimeFormat.Empty();
+	m_strDateTimeFormat4Log.Empty();
+	m_strDateTimeFormat4Lists.Empty();
+	m_strWebPassword.Empty();
+	m_strWebLowPassword.Empty();
+	m_strTemplateFile.Empty();
+	ForceReleaseCString(m_sWebHttpsCertificate);
+	ForceReleaseCString(m_sWebHttpsKey);
+	ForceReleaseCString(m_strSearchFileType);
+	ForceReleaseCString(m_sToolbarBitmap);
+	m_sToolbarBitmapFolder.Empty();
+	m_sToolbarSettings.Empty();
+	ForceReleaseCString(m_strFileTypeSelected);
+	ForceReleaseCString(sNotifierMailEncryptCertName);
+	sInternetSecurityZone.Empty();
+	ForceReleaseCString(m_strInformBadClientsText);
+	m_sDontShareExtensionsList.Empty();
+	shareddir_list.RemoveAll();
+	addresses_list.RemoveAll();
+	blacklist_list.RemoveAll();
+	thePrefs.m_CommunityTagCounterMap.RemoveAll();
+	thePrefs.m_CommunityTagIpHashSet.clear();
+	m_strFileCommentsFilePath.Empty();
+	ForceReleaseCString(m_email.sFrom);
+	ForceReleaseCString(m_email.sServer);
+	ForceReleaseCString(m_email.sTo);
+	ForceReleaseCString(m_email.sUser);
+	ForceReleaseCString(m_email.sPass);
+	proxy.host.Empty();
+	proxy.user.Empty();
+	proxy.password.Empty();
+	m_sConnectionCheckerServer.Empty();
+	for (int i = 0; i < EMULE_DIRECTORY_COUNT; ++i)
+		m_astrDefaultDirs[i].Empty();
+#endif
 }
 
 void CPreferences::SetStandardValues()
@@ -2906,9 +2988,11 @@ void CPreferences::LoadPreferences()
 	m_nWebMirrorAlertLevel = ini.GetInt(_T("WebMirrorAlertLevel"), 0);
 
 
-	SetUserNick(ini.GetStringUTF8(_T("Nick"), DEFAULT_NICK));
-	if (strNick.IsEmpty() || IsDefaultNick(strNick))
+	const CString strIniNick(ini.GetStringUTF8(_T("Nick"), EMPTY));
+	if (strIniNick.IsEmpty())
 		SetUserNick(DEFAULT_NICK);
+	else
+		SetUserNick(strIniNick);
 
 	m_strIncomingDir = ini.GetString(_T("IncomingDir"), EMPTY);
 	if (m_strIncomingDir.IsEmpty()) // We want GetDefaultDirectory to also create the folder, so we have to know if we use the default or not

@@ -1,0 +1,31 @@
+--- a/mbedtls/tf-psa-crypto/include/psa/crypto_config.h
++++ b/mbedtls/tf-psa-crypto/include/psa/crypto_config.h
+@@ -433,7 +433,7 @@
+  *
+  * Uncomment this to allow your own alternate threading implementation.
+  */
+-//#define MBEDTLS_THREADING_ALT
++#define MBEDTLS_THREADING_ALT
+ 
+ /**
+  * \def MBEDTLS_THREADING_PTHREAD
+@@ -467,7 +467,7 @@
+  *
+  * Enable this layer to allow use of mutexes within Mbed TLS
+  */
+-//#define MBEDTLS_THREADING_C
++#define MBEDTLS_THREADING_C
+ 
+ /* Memory buffer allocator options */
+ //#define MBEDTLS_MEMORY_ALIGN_MULTIPLE      4 /**< Align on multiples of this value */
+
+--- a/mbedtls/tf-psa-crypto/drivers/builtin/src/platform_util.c
++++ b/mbedtls/tf-psa-crypto/drivers/builtin/src/platform_util.c
+@@ -281,6 +281,7 @@
+ 
+ #include <windows.h>
+ #include <bcrypt.h>
++#pragma comment(lib, "bcrypt.lib") // eMuleAI <-- MbedTLS Fix
+ #include <intsafe.h>
+ 
+ int mbedtls_platform_get_entropy(psa_driver_get_entropy_flags_t flags,

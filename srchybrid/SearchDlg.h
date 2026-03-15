@@ -69,6 +69,7 @@ protected:
 	afx_msg void OnShowWindow(BOOL bShow, UINT nStatus);
 	afx_msg void OnSetFocus(CWnd *pOldWnd);
 	afx_msg void OnClose();
+	afx_msg void OnDestroy();
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg BOOL OnHelpInfo(HELPINFO*);
 };

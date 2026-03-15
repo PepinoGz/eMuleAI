@@ -1959,5 +1959,8 @@ protected:
 	static CString	GetDefaultDirectory(EDefaultDirectory eDirectory, bool bCreate = true);
 };
 
-extern CPreferences thePrefs;
+CPreferences& BB_GetPreferences();
+void BB_FreePreferences() noexcept;
+
+#define thePrefs BB_GetPreferences()
 extern bool g_bLowColorDesktop;

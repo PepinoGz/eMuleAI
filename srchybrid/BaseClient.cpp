@@ -4466,7 +4466,6 @@ void CUpDownClient::AssertValid() const
 	(void)m_addedPayloadQueueSession;
 	(void)m_nUpPartCount;
 	(void)m_nUpCompleteSourcesCount;
-	(void)s_UpStatusBar;
 	(void)requpfileid;
 	(void)m_lastRefreshedULDisplay;
 	m_AverageUDR_list.AssertValid();

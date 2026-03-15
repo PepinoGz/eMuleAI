@@ -54,6 +54,20 @@
 static char THIS_FILE[] = __FILE__;
 #endif
 
+namespace
+{
+	bool ShouldSkipClientPersistenceForManualLeakDump()
+	{
+#if defined(_DEBUG) && defined(DEBUGLEAKHELPER)
+		TCHAR szManualDump[8] = {};
+		const DWORD dwManualDump = GetEnvironmentVariable(_T("EMULE_CRT_FORCE_MANUAL_DUMP"), szManualDump, _countof(szManualDump));
+		return dwManualDump > 0 && dwManualDump < _countof(szManualDump) && szManualDump[0] != _T('0');
+#else
+		return false;
+#endif
+	}
+}
+
 #define CLIENT_HISTORY_MET_FILENAME	_T("clienthistory.met")
 #define CLIENT_HISTORY_MET_FILENAME_TMP	_T("clienthistory.met.tmp")
 
@@ -1696,6 +1710,9 @@ bool CClientList::LoadList()
 
 void CClientList::SaveList()
 {
+	if (ShouldSkipClientPersistenceForManualLeakDump())
+		return;
+
 	if (thePrefs.GetLogFileSaving())
 		AddDebugLogLine(false, _T("Saving client history file \"%s\""), CLIENT_HISTORY_MET_FILENAME);
 	m_tLastSaved = time(NULL);

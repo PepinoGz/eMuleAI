@@ -45,6 +45,20 @@
 static char THIS_FILE[] = __FILE__;
 #endif
 
+namespace
+{
+	CBarShader* g_pUploadStatusBar = NULL;
+
+	CBarShader& BB_GetUploadStatusBar()
+	{
+		if (g_pUploadStatusBar == NULL)
+			g_pUploadStatusBar = new CBarShader(16);
+		return *g_pUploadStatusBar;
+	}
+}
+
+#define s_UpStatusBar BB_GetUploadStatusBar()
+
 static bool ResolveSecureIdentForUpload(const CUpDownClient* client, EIdentState& identState, CAddress& scoreIP)
 {
 	scoreIP = client->GetIP();
@@ -84,12 +98,14 @@ static bool IsNonSuiPunishment(const uint8 badClientCategory)
 //	members of CUpDownClient
 //	which are mainly used for uploading functions
 
-CBarShader CUpDownClient::s_UpStatusBar(16);
-
 void CUpDownClient::ReleaseBarShaders() noexcept
 {
 	s_StatusBar.ReleaseBuffers();
-	s_UpStatusBar.ReleaseBuffers();
+	if (g_pUploadStatusBar != NULL) {
+		g_pUploadStatusBar->ReleaseBuffers();
+		delete g_pUploadStatusBar;
+		g_pUploadStatusBar = NULL;
+	}
 }
 
 void CUpDownClient::DrawUpStatusBar(CDC *dc, const CRect &rect, bool onlygreyrect, bool  bFlat) const

@@ -619,8 +619,11 @@ int CAddFileThread::Run()
 		newKnown->SetSharedDirectory(m_strSharedDir);
 		if (m_partfile && m_partfile->GetFileOp() == PFOP_HASHING)
 			m_partfile->SetFileOp(PFOP_NONE);
-		if (!theApp.emuledlg->PostMessage(TM_FINISHEDHASHING, (m_pOwner ? 0 : (WPARAM)m_partfile), (LPARAM)newKnown))
+		if (theApp.IsClosing() || !::IsWindow(theApp.emuledlg->m_hWnd)) {
 			delete newKnown;
+		} else if (!theApp.emuledlg->PostMessage(TM_FINISHEDHASHING, (m_pOwner ? 0 : (WPARAM)m_partfile), (LPARAM)newKnown)) {
+			delete newKnown;
+		}
 	} else {
 		if (!theApp.IsClosing()) {
 			if (m_partfile && m_partfile->GetFileOp() == PFOP_HASHING)

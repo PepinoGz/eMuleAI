@@ -1,0 +1,75 @@
+--- a/ResizableLib/ResizableLayout.h
++++ b/ResizableLib/ResizableLayout.h
+@@ -138,9 +138,16 @@
+ private:
+ 	//@{
+ 	//! @brief Collection of layout settings for each control
++	 // eMuleAI --> Fix: Memory Leaks
++	/*
+ 	CMap<HWND, HWND, POSITION, POSITION> m_mapLayout;
+ 	CList<LAYOUTINFO, LAYOUTINFO&> m_listLayout;
+ 	CList<LAYOUTINFO, LAYOUTINFO&> m_listLayoutCB;
++	*/
++	mutable CMap<HWND, HWND, POSITION, POSITION> m_mapLayout;
++	mutable CList<LAYOUTINFO, LAYOUTINFO&> m_listLayout;
++	mutable CList<LAYOUTINFO, LAYOUTINFO&> m_listLayoutCB;
++	// eMuleAI <-- Fix: Memory Leaks
+ 	//@}
+ 
+ 	//@{
+@@ -162,6 +169,8 @@
+ 	void CalcNewChildPosition(const LAYOUTINFO &layout,
+ 		const CRect &rectParent, CRect &rectChild, UINT *lpFlags) const;
+ 
++	void CleanupInvalidAnchors() const; // remove all anchors whose HWND is no longer valid // eMuleAI <-- Fix: Memory Leaks
++
+ protected:
+ 	//! @brief Override to initialize resize properties (clipping, refresh)
+ 	virtual void InitResizeProperties(LAYOUTINFO& layout) const;
+
+--- a/ResizableLib/ResizableLayout.cpp
++++ b/ResizableLib/ResizableLayout.cpp
+@@ -72,6 +72,8 @@
+ {
+ 	CWnd* pParent = GetResizableWnd();
+ 
++	CleanupInvalidAnchors(); // purge stale anchors before inserting/updating // eMuleAI <-- Fix: Memory Leaks
++
+ 	// child window must be valid
+ 	ASSERT(::IsWindow(hWnd));
+ 	// must be child of parent window
+@@ -156,6 +158,34 @@
+ 	}
+ }
+ 
++// eMuleAI --> Fix: Memory Leaks
++/*!
++ *  Remove anchors with invalid HWNDs to avoid stale entries and duplicates
++ */
++void CResizableLayout::CleanupInvalidAnchors() const
++{
++	// remove anchors whose HWND is no longer valid to avoid stale entries
++	CArray<HWND, HWND> deadKeys;
++	CArray<POSITION, POSITION> deadPos;
++	for (POSITION posMap = m_mapLayout.GetStartPosition(); posMap != NULL; ) {
++		HWND hWnd = NULL;
++		POSITION posList = NULL;
++		m_mapLayout.GetNextAssoc(posMap, hWnd, posList);
++		if (!::IsWindow(hWnd)) {
++			deadKeys.Add(hWnd);
++			deadPos.Add(posList);
++		}
++	}
++
++	for (INT_PTR i = 0; i < deadKeys.GetCount(); ++i) {
++		POSITION posList = deadPos[i];
++		if (posList)
++			m_listLayout.RemoveAt(posList);
++		m_mapLayout.RemoveKey(deadKeys[i]);
++	}
++}
++// eMuleAI <-- Fix: Memory Leaks
++
+ /*!
+  *  This function adds a placeholder to the layout manager, that will be
+  *  dynamically set by a callback function whenever required.

@@ -178,7 +178,7 @@ COScopeCtrl::~COScopeCtrl()
 
 BOOL COScopeCtrl::CreateWnd(DWORD dwStyle, const CRect &rect, CWnd *pParentWnd, UINT nID)
 {
-	static const CString &className(AfxRegisterWndClass(CS_DBLCLKS | CS_HREDRAW | CS_VREDRAW, AfxGetApp()->LoadStandardCursor(IDC_ARROW)));
+	static LPCTSTR const className = AfxRegisterWndClass(CS_DBLCLKS | CS_HREDRAW | CS_VREDRAW, AfxGetApp()->LoadStandardCursor(IDC_ARROW));
 
 	BOOL result = CWnd::CreateEx(/*WS_EX_CLIENTEDGE*/ // strong (default) border
 							WS_EX_STATICEDGE	// lightweight border

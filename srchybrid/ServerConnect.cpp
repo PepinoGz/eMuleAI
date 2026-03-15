@@ -303,7 +303,10 @@ void CServerConnect::ConnectionFailed(CServerSocket *sender)
 		return;
 	const CServer *cserver = sender->cur_server;
 	CServer *pServer = theApp.serverlist->GetServerByAddress(cserver->GetAddress(), cserver->GetPort());
-	switch (sender->GetConnectionState()) {
+	int connectionState = sender->GetConnectionState();
+	if (connectionState == CS_DISCONNECTED && sender != connectedsocket)
+		connectionState = CS_NOTCONNECTED;
+	switch (connectionState) {
 	case CS_FATALERROR:
 		LogError(LOG_STATUSBAR, GetResString(_T("ERR_FATAL")));
 		break;
@@ -328,7 +331,7 @@ void CServerConnect::ConnectionFailed(CServerSocket *sender)
 	// because it will delete itself after this function!
 	sender->m_bIsDeleting = true;
 
-	switch (sender->GetConnectionState()) {
+	switch (connectionState) {
 	case CS_FATALERROR:
 		{
 			bool autoretry = connecting && !singleconnecting;

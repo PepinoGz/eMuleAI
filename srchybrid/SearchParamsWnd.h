@@ -78,6 +78,7 @@ protected:
 	CSize m_szFloat;
 	CCustomAutoComplete *m_pacSearchString;
 
+	void ReleaseSearchAutoComplete();
 	void UpdateControls();
 	BOOL SaveSearchStrings();
 	void SetAllIcons();

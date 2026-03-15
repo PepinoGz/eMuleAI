@@ -427,8 +427,6 @@ private:
 	void	AddToSharedFiles();
 	void	DeleteWrittenItem(const POSITION pos);
 
-	static CBarShader s_LoadBar;
-	static CBarShader s_ChunkBar;
 	CCorruptionBlackBox	m_CorruptionBlackBox;
 	CList<Gap_Struct> m_gaplist;
 	CTypedPtrList<CPtrList, Requested_Block_Struct*> requestedblocks_list;

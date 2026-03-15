@@ -35,6 +35,8 @@ static _CrtMemState g_msAfterInit;
 #include "kademlia/kademlia/Kademlia.h"
 #include "kademlia/kademlia/Prefs.h"
 #include "kademlia/utils/UInt128.h"
+#include "eMuleAI/SafeKad.h"
+#include "eMuleAI/FastKad.h"
 #include "PerfLog.h"
 #include <sockimpl.h> //for *m_pfnSockTerm()
 #include "LastCommonRouteFinder.h"
@@ -57,6 +59,7 @@ static _CrtMemState g_msAfterInit;
 #include "Server.h"
 #include "ED2KLink.h"
 #include "Preferences.h"
+#include "Preview.h"
 #include "secrunasuser.h"
 #include "SafeFile.h"
 #include "emuleDlg.h"
@@ -81,11 +84,17 @@ static _CrtMemState g_msAfterInit;
 #include "eMuleAI/ThreadpoolWrapper.h"
 // Kademlia cleanup helpers
 #include "kademlia/kademlia/Entry.h"
+
+void FreeEncryptedDatagramSocketRandomPool();
+void FreeEncryptedStreamSocketRandomPool();
 #include "kademlia/routing/RoutingBin.h"
 #include "eMuleAI/ThreadpoolWrapper.h"
 #include "SHAHashSet.h"
 #include "OtherFunctions.h"
 #include "MediaInfo.h"
+#include "MediaInfo/MediaInfo_Config.h"
+#include "cryptopp/nbtheory.h"
+#include "cryptopp/pkcspad.h"
 #include "eMuleAI\LanguageSelectDlg.h"
 #include "eMuleAI\MigrationWizardDlg.h"
 
@@ -95,6 +104,18 @@ static _CrtMemState g_msAfterInit;
 
 #ifdef DEBUGLEAKHELPER
 #include "eMuleAI/DebugLeakHelper.h"
+
+static bool IsExitCommandInvocationForLeakDump()
+{
+	int argc = 0;
+	LPWSTR* argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
+	if (argv == NULL)
+		return false;
+
+	const bool isExitCommand = (argc >= 2 && _wcsicmp(argv[1], L"exit") == 0);
+	::LocalFree(argv);
+	return isExitCommand;
+}
 #endif
 
 #ifdef _DEBUG
@@ -131,7 +152,35 @@ static CMemoryState oldMemState, newMemState, diffMemState;
 
 _CRT_ALLOC_HOOK g_pfnPrevCrtAllocHook = NULL;
 CMap<const unsigned char*, const unsigned char*, UINT, UINT> g_allocations;
+static __declspec(thread) bool g_bAllocHookReentry = false;
 int eMuleAllocHook(int mode, void *pUserData, size_t nSize, int nBlockUse, long lRequest, const unsigned char *pszFileName, int nLine) noexcept;
+
+#ifdef DEBUGLEAKHELPER
+// Apply breakalloc as early as possible to catch pre-init allocations.
+#pragma section(".CRT$XIA", read)
+static void ApplyCrtBreakAllocsFromEnv();
+static void __cdecl EarlyApplyCrtBreakAlloc();
+extern "C" __declspec(allocate(".CRT$XIA")) void (__cdecl *g_pEarlyApplyBreakAlloc)(void) = EarlyApplyCrtBreakAlloc;
+
+// Run during earliest C initialization to catch allocations before other initializers.
+#pragma section(".CRT$XAA", read)
+static void __cdecl EarlyInitLeakHook();
+extern "C" __declspec(allocate(".CRT$XAA")) void (__cdecl *g_pEarlyInitLeakHook)(void) = EarlyInitLeakHook;
+
+static void __cdecl EarlyApplyCrtBreakAlloc()
+{
+	ApplyCrtBreakAllocsFromEnv();
+}
+
+static void __cdecl EarlyInitLeakHook()
+{
+	DebugLeakHelper::EarlyInit();
+	if (g_pfnPrevCrtAllocHook == NULL)
+		g_pfnPrevCrtAllocHook = _CrtSetAllocHook(&eMuleAllocHook);
+	ApplyCrtBreakAllocsFromEnv();
+	DebugLeakHelper::Init();
+}
+#endif
 
 // Cannot use a CString for that memory - it will be unavailable on application termination!
 #define APP_CRT_DEBUG_LOG_FILE _T("eMule CRT Debug Log.log")
@@ -149,6 +198,13 @@ static void ApplyCrtBreakAllocsFromEnv()
 			if (id > 0 && id <= LONG_MAX)
 				_CrtSetBreakAlloc((long)id);
 		}
+	}
+	TCHAR singleBuf[64] = {0};
+	const DWORD nSingle = GetEnvironmentVariable(_T("EMULE_CRT_BREAKALLOC"), singleBuf, _countof(singleBuf));
+	if (nSingle > 0 && nSingle < _countof(singleBuf)) {
+		const __int64 id = _tstoi64(singleBuf);
+		if (id > 0 && id <= LONG_MAX)
+			_CrtSetBreakAlloc((long)id);
 	}
 #ifdef FORCE_CRT_BREAKALLOCS
 	// Optional compile-time list, e.g. #define FORCE_CRT_BREAKALLOCS {12952,12949,15950,106,107}
@@ -354,6 +410,12 @@ CemuleApp::CemuleApp(LPCTSTR lpszAppName)
 	InitDEP();
 	InitHeapCorruptionDetection();
 
+#ifdef DEBUGLEAKHELPER
+	DebugLeakHelper::Init();
+	if (g_pfnPrevCrtAllocHook == NULL)
+		g_pfnPrevCrtAllocHook = _CrtSetAllocHook(&eMuleAllocHook);
+#endif
+
 	// This does not seem to work well with multithreading, although there is no reason why it should not.
 
 	srand((unsigned)time(NULL));
@@ -514,6 +576,8 @@ BOOL CemuleApp::InitInstance()
 	DebugLeakHelper::Init(); // Enable CRT leak checks & report to debugger
 	_CrtMemCheckpoint(&g_msStart); // Take "start of app" snapshot AFTER enabling flags
 	OutputDebugString(_T("[DebugLeak] Helper initialized.\n"));
+	// Disable ATL/MFC tracing to avoid benign trace-buffer allocations polluting leak dumps.
+	ATL::CTrace::SetCategories(0);
 #endif
 
 #ifdef _DEBUG
@@ -535,7 +599,8 @@ BOOL CemuleApp::InitInstance()
 #ifdef DEBUGLEAKHELPER
 	// Installing that memory debug code works fine in Debug builds when running within VS Debugger,
 	// but some other test applications don't like that all....
-	g_pfnPrevCrtAllocHook = _CrtSetAllocHook(&eMuleAllocHook); 
+	if (g_pfnPrevCrtAllocHook == NULL)
+		g_pfnPrevCrtAllocHook = _CrtSetAllocHook(&eMuleAllocHook); 
 #endif
 #endif
 
@@ -859,6 +924,8 @@ int CemuleApp::ExitInstance()
 	delete m_pUploadDiskIOThread;
 	m_pUploadDiskIOThread = NULL;
 	delete uploadBandwidthThrottler;
+	FreeEncryptedDatagramSocketRandomPool();
+	FreeEncryptedStreamSocketRandomPool();
 	uploadBandwidthThrottler = NULL;
 	delete lastCommonRouteFinder;
 	lastCommonRouteFinder = NULL;
@@ -914,6 +981,22 @@ int CemuleApp::ExitInstance()
 	}
 
 	thePrefs.Uninit();
+	theStats.Uninit();
+	theAntiNickClass.UnInit();
+	BB_FreePreviewApps();
+	BB_FreeStatistics();
+	BB_FreePreferences();
+	CKnownFile::ReleaseBarShaderBuffers();
+	CPartFile::ReleaseBarShaderBuffers();
+	CUpDownClient::ReleaseBarShaders();
+
+	// Release last clipboard snapshot buffer.
+	m_strLastClipboardContents.Empty();
+	m_strLastClipboardContents.FreeExtra();
+	m_strCurVersionLong.Empty();
+	m_strCurVersionLong.FreeExtra();
+	m_strCurVersionLongDbg.Empty();
+	m_strCurVersionLongDbg.FreeExtra();
 
 	CAICHRecoveryHashSet::ClearStoredAICHHashes(); // Clears the AICH hash set.
 
@@ -939,9 +1022,7 @@ int CemuleApp::ExitInstance()
 
 #ifdef _DEBUG
 	// 3) Clear allocation statistics map to avoid reporting its internal CPlex blocks.
-	_CRT_ALLOC_HOOK old_alloc = _CrtSetAllocHook(NULL); // Avoid re-entrancy while touching CMap
 	g_allocations.RemoveAll();
-	_CrtSetAllocHook(old_alloc);
 #endif
 
 	// 4) Ensure rich edit global smiley caches are purged before CRT leak snapshot.
@@ -953,31 +1034,68 @@ int CemuleApp::ExitInstance()
 	// 5b) Clear MediaInfo display-name caches to release CPlex blocks.
 	ClearMediaInfoCaches();
 
+	// 5c) Release MediaInfoLib global caches before leak dump.
+
+	// 5d) Release translation key index cache before leak dump.
+	ClearTranslationKeyIndex();
+
+#ifdef DEBUGLEAKHELPER
+	// 5e) Release Crypto++ singleton caches before leak dump.
+#if defined(CRYPTOPP_HAS_SINGLETON_CLEANUP)
+	CryptoPP::CleanupNbTheorySingletons();
+	CryptoPP::CleanupPkcspadSingletons();
+#endif
+#endif
+
+	// 5f) Close log files and release their path buffers before leak dump.
+	theLog.Close();
+	theVerboseLog.Close();
+#if defined(_DEBUG) && defined(DEBUGLEAKHELPER)
+	theLog.ClearFilePath();
+	theVerboseLog.ClearFilePath();
+#endif
+
 	// 6) Reset Kademlia global tracking maps to avoid benign shutdown-time leaks in CRT snapshot.
 	Kademlia::CKeyEntry::ResetGlobalTrackingMap();
 	Kademlia::CRoutingBin::ResetGlobalTrackingMaps();
+	Kademlia::safeKad.ShutdownCleanup();
+	Kademlia::fastKad.ShutdownCleanup();
+
+	const int nExitCode = CWinApp::ExitInstance();
 
 #ifdef DEBUGLEAKHELPER
-	_CRT_ALLOC_HOOK oldHook = _CrtSetAllocHook(NULL); // Temporarily suspend our alloc hook while CRT enumerates the heap.
-
-	DebugLeakHelper::DumpLeaksToCrt(); // writes full leak list to CRT output
+	// Guard against debug-iterator shutdown crashes inside MediaInfoLib cleanup.
+	__try {
+		MediaInfoLib::Config.ShutdownCleanup();
+	} __except (EXCEPTION_EXECUTE_HANDLER) {
+		TRACE(_T("[DebugLeak][MediaInfo] ShutdownCleanup raised SEH exception, skipped.\n"));
+	}
+	TCHAR szManualDump[8] = {};
+	const DWORD dwManualDump = GetEnvironmentVariable(_T("EMULE_CRT_FORCE_MANUAL_DUMP"), szManualDump, _countof(szManualDump));
+	if (dwManualDump > 0 && dwManualDump < _countof(szManualDump) && szManualDump[0] != _T('0') && !IsExitCommandInvocationForLeakDump())
+		DebugLeakHelper::DumpLeaksToCrt();
+	int crtFlags = _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG);
+	crtFlags &= ~_CRTDBG_LEAK_CHECK_DF;
+	_CrtSetDbgFlag(crtFlags);
+	// Leak dump runs via atexit (registered in DebugLeakHelper::Init) to avoid false positives from static teardown.
 
 	// Safer than walking from a stale header: use snapshot differences.
 	_CrtMemState now, diff;
 	_CrtMemCheckpoint(&now);
 
-	OutputDebugString(_T("==== Stats since app start ====\n"));
+	_RPT0(_CRT_WARN, "==== Stats since app start ====\n");
 	if (_CrtMemDifference(&diff, &g_msStart, &now))
 		_CrtMemDumpStatistics(&diff);
 	else
-		OutputDebugString(_T("[DebugLeak] No differences since app start.\n"));
+		_RPT0(_CRT_WARN, "[DebugLeak] No differences since app start.\n");
 
-	OutputDebugString(_T("==== Stats since after init ====\n"));
+	_RPT0(_CRT_WARN, "==== Stats since after init ====\n");
 	if (_CrtMemDifference(&diff, &g_msAfterInit, &now))
 		_CrtMemDumpStatistics(&diff);
 	else
-		OutputDebugString(_T("[DebugLeak] No differences since after init.\n"));
+		_RPT0(_CRT_WARN, "[DebugLeak] No differences since after init.\n");
 
+	_CRT_ALLOC_HOOK oldHook = _CrtSetAllocHook(NULL);
 	// Restore any previous hook (if ours was active) before tearing down the CS.
 	if (oldHook == &eMuleAllocHook)
 		_CrtSetAllocHook(g_pfnPrevCrtAllocHook);
@@ -986,7 +1104,7 @@ int CemuleApp::ExitInstance()
 	DeleteCriticalSection(&g_allocCS);
 #endif
 
-	return CWinApp::ExitInstance();
+	return nExitCode;
 }
 
 #ifdef _DEBUG
@@ -998,6 +1116,20 @@ int CrtDebugReportCB(int reportType, char *message, int *returnValue) noexcept
 		TCHAR szTime[40];
 		_tcsftime(szTime, _countof(szTime), _T("%H:%M:%S"), localtime(&tNow));
 		_ftprintf(fp, _T("%ls  %i  %hs"), szTime, reportType, message);
+	#ifdef DEBUGLEAKHELPER
+		if (message != NULL && strstr(message, "bytes long") != NULL) {
+			const char* pIdStart = strchr(message, '{');
+			if (pIdStart != NULL) {
+				char* pIdEnd = NULL;
+				const unsigned long allocId = strtoul(pIdStart + 1, &pIdEnd, 10);
+				if (pIdEnd != NULL && *pIdEnd == '}') {
+					TCHAR szTrackedInfo[512] = {};
+					if (DebugLeakHelper::TryDescribeTrackedAlloc(allocId, szTrackedInfo, _countof(szTrackedInfo)))
+						_ftprintf(fp, _T("%ls  %i  %ls\n"), szTime, reportType, szTrackedInfo);
+				}
+			}
+		}
+	#endif
 		fclose(fp);
 	}
 	*returnValue = 0; // avoid invocation of 'AfxDebugBreak' in ASSERT macros
@@ -1007,14 +1139,35 @@ int CrtDebugReportCB(int reportType, char *message, int *returnValue) noexcept
 // allocation hook - for memory statistics gathering
 int eMuleAllocHook(int mode, void *pUserData, size_t nSize, int nBlockUse, long lRequest, const unsigned char *pszFileName, int nLine) noexcept
 {
+	if (g_bAllocHookReentry) {
+		if (g_pfnPrevCrtAllocHook)
+			return g_pfnPrevCrtAllocHook(mode, pUserData, nSize, nBlockUse, lRequest, pszFileName, nLine);
+		return 1;
+	}
+
+	struct AllocHookGuard
+	{
+		AllocHookGuard() { g_bAllocHookReentry = true; }
+		~AllocHookGuard() { g_bAllocHookReentry = false; }
+	} guard;
+
 #ifdef DEBUGLEAKHELPER
 	// Break on selected allocation IDs (parsed from env/log)
 	if (mode == _HOOK_ALLOC && DebugLeakHelper::ShouldBreakAlloc(lRequest)) {
+		const char* fileName = pszFileName ? reinterpret_cast<const char*>(pszFileName) : "<null>";
+		TRACE(_T("[DebugLeak][BreakAlloc] hit request=%ld size=%Iu block=%d file=%hs line=%d\n"),
+			lRequest, nSize, nBlockUse, fileName, nLine);
 	#ifdef _MSC_VER
 			__debugbreak();
 	#else
 			DebugBreak();
 	#endif
+	}
+
+	if (DebugLeakHelper::IsLeakDumpInProgress()) {
+		if (g_pfnPrevCrtAllocHook)
+			return g_pfnPrevCrtAllocHook(mode, pUserData, nSize, nBlockUse, lRequest, pszFileName, nLine);
+		return 1;
 	}
 #endif
 
@@ -1028,8 +1181,6 @@ int eMuleAllocHook(int mode, void *pUserData, size_t nSize, int nBlockUse, long 
 	UINT count = 0;
 	g_allocations.Lookup(key, count);
 
-	// Avoid re-entrancy: touching CMap may allocate; disable hook briefly.
-	_CRT_ALLOC_HOOK old = _CrtSetAllocHook(NULL);
 	if (mode == _HOOK_ALLOC)
 		g_allocations[key] = count + 1;
 	else if (mode == _HOOK_FREE)
@@ -1037,7 +1188,6 @@ int eMuleAllocHook(int mode, void *pUserData, size_t nSize, int nBlockUse, long 
 #ifdef DEBUGLEAKHELPER
 	DebugLeakHelper::TrackAllocHookEvent(mode, pUserData, nSize, nBlockUse, lRequest, pszFileName, nLine);
 #endif
-	_CrtSetAllocHook(old);
 
 #ifdef DEBUGLEAKHELPER
 	LeaveCriticalSection(&g_allocCS);
@@ -2686,9 +2836,9 @@ struct TPIODirWatch {
 // Globals for watcher state (file scope, not exposed)
 static CRITICAL_SECTION g_tpNewSharedDirsCS;
 static CRITICAL_SECTION g_tpCleanupCS;
-static std::vector<TPIODirWatch*> g_tpWatches;
-static std::vector<TPIODirWatch*> g_tpCleanup; // Deferred cleanup queue
-static std::vector<CString> g_tpNewSharedDirs;
+static std::vector<TPIODirWatch*>* g_tpWatches = NULL;
+static std::vector<TPIODirWatch*>* g_tpCleanup = NULL; // Deferred cleanup queue
+static std::vector<CString>* g_tpNewSharedDirs = NULL;
 static volatile LONG g_tpTimerArmed = 0;
 static volatile LONG g_tpStopping = 0;
 static volatile LONG g_tpForceTreeReload = 0; // Set to 1 by I/O cb when directory-level change requires tree rebuild
@@ -2703,7 +2853,21 @@ static DWORD g_dwCleanupDueAt = 0;
 // Deleted paths are collected on the TP I/O callback thread and coalesced. GUI thread can (now or later) consume this list to proactively prune waiters.
 static CRITICAL_SECTION g_tpDelCS;
 static bool g_tpCsInit = false;
-static std::vector<CString> g_tpDeleted;
+static std::vector<CString>* g_tpDeleted = NULL;
+
+static std::vector<TPIODirWatch*>& BB_GetTpWatches()
+{
+	if (g_tpWatches == NULL)
+		g_tpWatches = new std::vector<TPIODirWatch*>();
+	return *g_tpWatches;
+}
+
+static std::vector<TPIODirWatch*>& BB_GetTpCleanup()
+{
+	if (g_tpCleanup == NULL)
+		g_tpCleanup = new std::vector<TPIODirWatch*>();
+	return *g_tpCleanup;
+}
 
 // Root set change detector (lightweight): hash + periodic TP timer.
 static volatile LONG g_tpRebuildingRoots = 0;
@@ -2800,7 +2964,9 @@ static __forceinline void BB_PushDeletedPath(const CString& full)
 		return;
 
 	EnterCriticalSection(&g_tpDelCS);
-	g_tpDeleted.push_back(full);
+	if (g_tpDeleted == NULL)
+		g_tpDeleted = new std::vector<CString>();
+	g_tpDeleted->push_back(full);
 	LeaveCriticalSection(&g_tpDelCS);
 }
 
@@ -2943,12 +3109,13 @@ void CemuleApp::SyncDirWatchRootsHash()
 // Drains newly created subdirs (AutoShareSubdirs) and appends to thePrefs.shared list.
 void CemuleApp::DrainAutoSharedNewDirs()
 {
-	if (!g_tpNewSharedDirsCSInit)
+	if (!g_tpNewSharedDirsCSInit || g_tpNewSharedDirs == NULL)
 		return;
 
 	std::vector<CString> todo;
 	EnterCriticalSection(&g_tpNewSharedDirsCS);
-	todo.swap(g_tpNewSharedDirs);
+	if (g_tpNewSharedDirs != NULL)
+		todo.swap(*g_tpNewSharedDirs);
 	LeaveCriticalSection(&g_tpNewSharedDirsCS);
 
 	if (todo.empty())
@@ -3052,12 +3219,13 @@ static VOID CALLBACK DirWatchIoCb(PVOID /*instance*/, PVOID ctx, PVOID /*overlap
 				if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY)) {
 					InterlockedExchange(&g_tpForceTreeReload, 1);
 
-					if (thePrefs.GetAutoShareSubdirs() && g_tpNewSharedDirsCSInit) {
+					if (thePrefs.GetAutoShareSubdirs() && g_tpNewSharedDirsCSInit && g_tpNewSharedDirs != NULL) {
 						if (full.Right(1) != _T("\\"))
 							full += _T("\\");
 
 						EnterCriticalSection(&g_tpNewSharedDirsCS);
-						g_tpNewSharedDirs.push_back(full);
+						if (g_tpNewSharedDirs != NULL)
+							g_tpNewSharedDirs->push_back(full);
 						LeaveCriticalSection(&g_tpNewSharedDirsCS);
 					}
 
@@ -3101,12 +3269,14 @@ void CemuleApp::StartDirWatchTP()
 	// Init per-run queue for auto-added subdirs (if feature enabled)
 	if (!g_tpNewSharedDirsCSInit) {
 		InitializeCriticalSection(&g_tpNewSharedDirsCS);
+		g_tpNewSharedDirs = new std::vector<CString>();
 		g_tpNewSharedDirsCSInit = true;
 	}
 
 	if (g_tpNewSharedDirsCSInit) {
 		EnterCriticalSection(&g_tpNewSharedDirsCS);
-		g_tpNewSharedDirs.clear();
+		if (g_tpNewSharedDirs != NULL)
+			g_tpNewSharedDirs->clear();
 		LeaveCriticalSection(&g_tpNewSharedDirsCS);
 	}
 
@@ -3188,11 +3358,11 @@ void CemuleApp::StartDirWatchTP()
 			continue;
 		}
 
-		g_tpWatches.push_back(pW);
+		BB_GetTpWatches().push_back(pW);
 	}
 
-	if (!g_tpWatches.empty())
-		TRACE2(_T("Shared Files Watcher (TP I/O): %u roots armed\n"), (UINT)g_tpWatches.size());
+	if (g_tpWatches != NULL && !g_tpWatches->empty())
+		TRACE2(_T("Shared Files Watcher (TP I/O): %u roots armed\n"), (UINT)g_tpWatches->size());
 }
 
 void CemuleApp::StopDirWatchTP()
@@ -3211,13 +3381,14 @@ void CemuleApp::StopDirWatchTP()
 	// Drop any deferred cleanup items to avoid dangling pointers during shutdown.
 	if (g_tpCleanupCSInit) {
 		EnterCriticalSection(&g_tpCleanupCS);
-		g_tpCleanup.clear();
+		if (g_tpCleanup != NULL)
+			g_tpCleanup->clear();
 		LeaveCriticalSection(&g_tpCleanupCS);
 	}
 
 	// Synchronous, deterministic teardown of all watches to avoid post-snapshot leaks.
-	for (size_t i = 0; i < g_tpWatches.size(); ++i) {
-		TPIODirWatch* pW = g_tpWatches[i];
+	if (g_tpWatches != NULL) for (size_t i = 0; i < g_tpWatches->size(); ++i) {
+		TPIODirWatch* pW = (*g_tpWatches)[i];
 		if (!pW)
 			continue;
 
@@ -3268,12 +3439,17 @@ void CemuleApp::StopDirWatchTP()
 
 		delete pW;
 	}
-	g_tpWatches.clear();
+	delete g_tpWatches;
+	g_tpWatches = NULL;
 
 	// Reset per-run queue
 	if (g_tpNewSharedDirsCSInit) {
 		EnterCriticalSection(&g_tpNewSharedDirsCS);
-		g_tpNewSharedDirs.clear();
+		if (g_tpNewSharedDirs != NULL) {
+			g_tpNewSharedDirs->clear();
+			delete g_tpNewSharedDirs;
+			g_tpNewSharedDirs = NULL;
+		}
 		LeaveCriticalSection(&g_tpNewSharedDirsCS);
 		DeleteCriticalSection(&g_tpNewSharedDirsCS);
 		g_tpNewSharedDirsCSInit = false;
@@ -3281,12 +3457,16 @@ void CemuleApp::StopDirWatchTP()
 
 	// Delete cleanup CS if we created it.
 	if (g_tpCleanupCSInit) {
+		delete g_tpCleanup;
+		g_tpCleanup = NULL;
 		DeleteCriticalSection(&g_tpCleanupCS);
 		g_tpCleanupCSInit = false;
 	}
 
 	// Delete deleted-paths CS if it was initialized anywhere (defensive: initialize here on demand)
 	if (g_tpCsInit) {
+		delete g_tpDeleted;
+		g_tpDeleted = NULL;
 		DeleteCriticalSection(&g_tpDelCS);
 		g_tpCsInit = false;
 	}
@@ -3316,7 +3496,8 @@ void CemuleApp::OnUploadTick_100ms_DirWatch() noexcept
 
 			if (g_tpCleanupCSInit) {
 				EnterCriticalSection(&g_tpCleanupCS);
-				todo.swap(g_tpCleanup);
+				if (g_tpCleanup != NULL)
+					todo.swap(*g_tpCleanup);
 				LeaveCriticalSection(&g_tpCleanupCS);
 			}
 
@@ -3340,7 +3521,8 @@ void CemuleApp::OnUploadTick_100ms_DirWatch() noexcept
 				if (!remaining.empty()) {
 					if (g_tpCleanupCSInit) {
 						EnterCriticalSection(&g_tpCleanupCS);
-						for (size_t i = 0; i < remaining.size(); ++i) g_tpCleanup.push_back(remaining[i]);
+						for (size_t i = 0; i < remaining.size(); ++i)
+							BB_GetTpCleanup().push_back(remaining[i]);
 						LeaveCriticalSection(&g_tpCleanupCS);
 					}
 

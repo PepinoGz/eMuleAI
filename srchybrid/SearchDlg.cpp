@@ -40,6 +40,7 @@ BEGIN_MESSAGE_MAP(CSearchDlg, CFrameWnd)
 	ON_WM_SHOWWINDOW()
 	ON_WM_SETFOCUS()
 	ON_WM_CLOSE()
+	ON_WM_DESTROY()
 	ON_WM_SYSCOMMAND()
 	ON_WM_HELPINFO()
 END_MESSAGE_MAP()
@@ -101,9 +102,18 @@ int CSearchDlg::OnCreate(LPCREATESTRUCT lpCreateStruct)
 void CSearchDlg::OnClose()
 {
 	SaveBarState(SEARCH_PARAMS_PROFILE);
-	if (theApp.IsClosing())
-		return;
+	if (m_pwndResults)
+		m_pwndResults->m_pwndParams = NULL;
+	if (m_wndParams.m_hWnd)
+		m_wndParams.DestroyWindow();
 	CFrameWnd::OnClose();
+}
+
+void CSearchDlg::OnDestroy()
+{
+	if (m_pwndResults)
+		m_pwndResults->m_pwndParams = NULL;
+	CFrameWnd::OnDestroy();
 }
 
 

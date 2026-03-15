@@ -74,6 +74,23 @@ void CFileDataIO::ReadHash16(uchar *pVal)
 
 CString CFileDataIO::ReadString(bool bOptUTF8, UINT uRawSize)
 {
+	const ULONGLONG pos = GetPosition();
+	const ULONGLONG len = GetLength();
+	if (len < pos) {
+		TRACE(_T("[DebugLeak][ReadString] Invalid position: pos=%I64u len=%I64u\n"), pos, len);
+		AfxThrowFileException(CFileException::endOfFile, 0, NULL);
+	}
+	const ULONGLONG remaining = len - pos;
+	if (static_cast<ULONGLONG>(uRawSize) > remaining) {
+		TRACE(_T("[DebugLeak][ReadString] Raw size exceeds remaining: raw=%u remaining=%I64u\n"), uRawSize, remaining);
+		AfxThrowFileException(CFileException::endOfFile, 0, NULL);
+	}
+	static const UINT kMaxRawSize = 4u * 1024u * 1024u;
+	if (uRawSize > kMaxRawSize) {
+		TRACE(_T("[DebugLeak][ReadString] Raw size too large: raw=%u max=%u\n"), uRawSize, kMaxRawSize);
+		AfxThrowFileException(CFileException::endOfFile, 0, NULL);
+	}
+
 	const UINT uMaxShortRawSize = SHORT_RAW_ED2K_UTF8_STR;
 	if (uRawSize <= uMaxShortRawSize) {
 		char acRaw[uMaxShortRawSize];

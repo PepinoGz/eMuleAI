@@ -86,14 +86,5 @@
 /TranslationCompiler/Debug
 /TranslationCompiler/Release
 /TranslationCompiler/.vs
-/sync.ffs_db*
-/sync.ffs_lock
-/1.png
-/2.png
-/3.png
-/1.jpg
-/2.jpg
-/3.jpg
-
 srchybrid/translations/__pycache__/gemini_translator.cpython-310.pyc
 srchybrid/translations/gemini_translator_resume.txt
