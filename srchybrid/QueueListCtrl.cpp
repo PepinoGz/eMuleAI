@@ -106,6 +106,8 @@ void CQueueListCtrl::Init()
 	InsertColumn(20, EMPTY, LVCFMT_LEFT, 100);
 	InsertColumn(21, EMPTY, LVCFMT_LEFT, 100);
 	InsertColumn(22, EMPTY, LVCFMT_LEFT, 100);
+	InsertColumn(23, EMPTY, LVCFMT_RIGHT, 60);
+	InsertColumn(24, EMPTY, LVCFMT_RIGHT, 60);
 
 	SetAllIcons();
 	LoadSettings();
@@ -115,7 +117,7 @@ void CQueueListCtrl::Init()
 
 void CQueueListCtrl::Localize()
 {
-	static const LPCTSTR uids[23] =
+	static const LPCTSTR uids[25] =
 	{
 		_T("QL_USERNAME"), _T("FILE"), _T("FILEPRIO"), _T("QL_RATING"), _T("SCORE")
 		, _T("ASKED"), _T("LAST_ASKED"), _T("ENTERQUEUE"), _T("UPSTATUS")
@@ -133,6 +135,8 @@ void CQueueListCtrl::Localize()
         , _T("FIRST_SEEN")
 		, _T("LAST_SEEN")
 		, _T("CLIENT_NOTE")
+		, _T("RATIO")
+		, _T("RATIO_SESSION")
 	};
 
 	LocaliseHeaderCtrl(uids, _countof(uids));
@@ -364,6 +368,20 @@ const CString CQueueListCtrl::GetItemDisplayText(CUpDownClient* client, const in
 	case 22:
 		sText = client->m_strClientNote;
 		break;
+	case 23:
+		{
+			const CKnownFile *file = theApp.sharedfiles->GetFileByID(client->GetUploadFileID());
+			if (file)
+				sText.Format(_T("%.1f"), file->GetAllTimeRatio());
+		}
+		break;
+	case 24:
+		{
+			const CKnownFile *file = theApp.sharedfiles->GetFileByID(client->GetUploadFileID());
+			if (file)
+				sText.Format(_T("%.1f"), file->GetRatio());
+		}
+		break;
 	}
 	return sText;
 }
@@ -522,6 +540,30 @@ int CALLBACK CQueueListCtrl::SortProc(const LPARAM lParam1, const LPARAM lParam2
 		break;
 	case 22:
 		iResult = CompareLocaleStringNoCase(item1->m_strClientNote, item2->m_strClientNote);
+		break;
+	case 23:
+		{
+			const CKnownFile *file1 = theApp.sharedfiles->GetFileByID(item1->GetUploadFileID());
+			const CKnownFile *file2 = theApp.sharedfiles->GetFileByID(item2->GetUploadFileID());
+			if (file1 != NULL && file2 != NULL) {
+				const double ratio1 = file1->GetAllTimeRatio();
+				const double ratio2 = file2->GetAllTimeRatio();
+				iResult = (ratio1 < ratio2) ? -1 : static_cast<int>(ratio1 > ratio2);
+			} else
+				iResult = (file1 == NULL) ? 1 : -1;
+		}
+		break;
+	case 24:
+		{
+			const CKnownFile *file1 = theApp.sharedfiles->GetFileByID(item1->GetUploadFileID());
+			const CKnownFile *file2 = theApp.sharedfiles->GetFileByID(item2->GetUploadFileID());
+			if (file1 != NULL && file2 != NULL) {
+				const double ratio1 = file1->GetRatio();
+				const double ratio2 = file2->GetRatio();
+				iResult = (ratio1 < ratio2) ? -1 : static_cast<int>(ratio1 > ratio2);
+			} else
+				iResult = (file1 == NULL) ? 1 : -1;
+		}
 		break;
 
 	}

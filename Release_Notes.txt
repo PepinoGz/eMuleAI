@@ -1,3 +1,14 @@
+VERSION HISTORY
+================================================================
+
+v1.1
+Added the "Ratio" and "Session Ratio" columns to the Upload, Queue, and Files lists.
+
+v1.0
+Initial public release. See the "New Features / Improvements / Bug Fixes" section below for details.
+
+
+
 NEW FEATURES / IMPROVEMENTS / BUG FIXES
 
 ================================================================

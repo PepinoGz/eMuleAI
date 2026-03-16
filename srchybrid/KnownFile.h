@@ -121,6 +121,16 @@ public:
 	virtual CString	GetInfoSummary(bool bNoFormatCommands = false) const;
 	CString	GetUpPriorityDisplayString() const;
 	virtual void	UpdateFileRatingCommentAvail(bool bForceUpdate = false);
+	double	GetRatio() const
+	{
+		const uint64 fileSize = static_cast<uint64>(GetFileSize());
+		return fileSize > 0 ? static_cast<double>(statistic.GetTransferred()) / static_cast<double>(fileSize) : 0.0;
+	}
+	double	GetAllTimeRatio() const
+	{
+		const uint64 fileSize = static_cast<uint64>(GetFileSize());
+		return fileSize > 0 ? static_cast<double>(statistic.GetAllTimeTransferred()) / static_cast<double>(fileSize) : 0.0;
+	}
 
 	//aich
 	void	SetAICHRecoverHashSetAvailable(bool bVal)	{ m_bAICHRecoverHashSetAvailable = bVal; }

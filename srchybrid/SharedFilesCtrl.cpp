@@ -315,6 +315,8 @@ void CSharedFilesCtrl::Init()
 	InsertColumn(15,	EMPTY,	LVCFMT_RIGHT,	DFLT_LENGTH_COL_WIDTH, -1, true);	//LENGTH
 	InsertColumn(16,	EMPTY,	LVCFMT_RIGHT,	DFLT_BITRATE_COL_WIDTH, -1, true);	//BITRATE
 	InsertColumn(17,	EMPTY,	LVCFMT_LEFT,	DFLT_CODEC_COL_WIDTH, -1, true);	//CODEC
+	InsertColumn(18,	EMPTY,	LVCFMT_RIGHT,	DFLT_LENGTH_COL_WIDTH);
+	InsertColumn(19,	EMPTY,	LVCFMT_RIGHT,	DFLT_LENGTH_COL_WIDTH);
 
 	SetAllIcons();
 	LoadSettings();
@@ -360,12 +362,13 @@ void CSharedFilesCtrl::SetAllIcons()
 
 void CSharedFilesCtrl::Localize()
 {
-	static const LPCTSTR uids[18] =
+	static const LPCTSTR uids[20] =
 	{
 		_T("DL_FILENAME"), _T("DL_SIZE"), _T("TYPE"), _T("PRIORITY"), _T("FILEID")
 		, _T("SF_REQUESTS"), _T("SF_ACCEPTS"), _T("SF_TRANSFERRED"), _T("SHARED_STATUS"), _T("FOLDER")
 		, _T("COMPLSOURCES"), _T("SHAREDTITLE"), _T("ARTIST"), _T("ALBUM"), _T("TITLE")
 		, _T("LENGTH"), _T("BITRATE"), _T("CODEC")
+		, _T("RATIO"), _T("RATIO_SESSION")
 	};
 
 	LocaliseHeaderCtrl(uids, _countof(uids));
@@ -916,6 +919,13 @@ const CString CSharedFilesCtrl::GetItemDisplayText(const CShareableFile *file, c
 			break;
 		case 17:
 			sText = GetCodecDisplayName(pKnownFile->GetStrTagValue(FT_MEDIA_CODEC));
+			break;
+		case 18:
+			sText.Format(_T("%.1f"), pKnownFile->GetAllTimeRatio());
+			break;
+		case 19:
+			sText.Format(_T("%.1f"), pKnownFile->GetRatio());
+			break;
 		}
 	}
 	return sText;
@@ -1715,6 +1725,20 @@ int CALLBACK CSharedFilesCtrl::SortProc(const LPARAM lParam1, const LPARAM lPara
 				break;
 			case 17:
 				iResult = CompareOptLocaleStringNoCaseUndefinedAtBottom(GetCodecDisplayName(kitem1->GetStrTagValue(FT_MEDIA_CODEC)), GetCodecDisplayName(kitem2->GetStrTagValue(FT_MEDIA_CODEC)), bSortAscending);
+				break;
+			case 18:
+				{
+					const double ratio1 = kitem1->GetAllTimeRatio();
+					const double ratio2 = kitem2->GetAllTimeRatio();
+					iResult = (ratio1 < ratio2) ? -1 : static_cast<int>(ratio1 > ratio2);
+				}
+				break;
+			case 19:
+				{
+					const double ratio1 = kitem1->GetRatio();
+					const double ratio2 = kitem2->GetRatio();
+					iResult = (ratio1 < ratio2) ? -1 : static_cast<int>(ratio1 > ratio2);
+				}
 				break;
 
 			case 105: //all requests
